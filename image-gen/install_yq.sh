@@ -8,4 +8,4 @@ then
 fi
 
 # grab yq via go.
-go install github.com/mikefarah/yq/v4@latest
+GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4@latest
