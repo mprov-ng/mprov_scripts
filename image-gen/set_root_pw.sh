@@ -4,7 +4,7 @@
 # Author: Jason Williams <jasonw@.jhu.edu>
 
 
-rootpw=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar '.[0].rootpw'`
+rootpw=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar '.rootpw'`
 
 
 if [ "$rootpw" == "" ]
