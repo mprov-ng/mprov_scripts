@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # make sure golang is installed.
-GORPM=`rpm -qa | grep golang`
-if [ "GORPM" == "" ]
+rpm -qa | grep golang > /dev/null 2>&1
+if [ "$?" != "0" ]
 then  
   dnf -y install golang
 fi
