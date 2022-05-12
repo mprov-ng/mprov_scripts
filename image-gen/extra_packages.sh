@@ -4,7 +4,7 @@
 # Author: Jason Williams <jasonw@.jhu.edu>
 
 
-pkgs=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar  .extra_packages  | sed -e 's/\s*\-\s*//'`
+pkgs=`cat /tmp/mprov/entity.json | jq -r .config_params | jq -r '.extra_packages|join(" " )'
 
 
 if [ "$pkgs" == "" ]
