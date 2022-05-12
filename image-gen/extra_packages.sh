@@ -4,7 +4,7 @@
 # Author: Jason Williams <jasonw@.jhu.edu>
 
 
-pkgs=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar  .extra_packages  | sed -e 's/\s*\-\s*//'
+pkgs=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar  .extra_packages  | sed -e 's/\s*\-\s*//'`
 
 
 if [ "$pkgs" == "" ]
@@ -12,5 +12,5 @@ then
   echo "No extra packages."
   exit 0
 fi
-
+echo $pkgs
 dnf -y install $pkgs
