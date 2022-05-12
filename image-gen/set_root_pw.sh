@@ -1,22 +1,22 @@
 #!/bin/bash
 #
-# set_root_pw.sh - sets the root password to the same password that is on the image-update jobserver.
+# set_root_pw.sh - sets the root password to the value from config_params
 # Author: Jason Williams <jasonw@.jhu.edu>
 
-# get the root pw entry from /etc/shadow.
-ROOT_PW=`cat /etc/shadow | grep "^root:"`
 
-# Did we get a path to write the new pw to?
-if [ "$1" == "" ]
+rootpw=`cat /tmp/mprov/entity.json | jq -r .config_params | yq --unwrapScalar '.[0].rootpw'`
+
+
+if [ "$rootpw" == "" ]
 then
-  echo "Error: You must tell me where the target shadow file is." >&2
+  echo "Error: No rootpw specified, exiting." >&2
   exit 1
 fi
 
 # make a new shadow file
 TMPFILE=`mktemp`
-cat $1 | grep -v "^root:" > $TMPFILE
-echo $ROOT_PW | cat - $TMPFILE  >> $1
+cat /etc/shadow | grep -v "^root:" > $TMPFILE
+echo "root:$rootpw:18700:0:99999:7:::" | cat - $TMPFILE  >> /etc/shadow
 
 # clean up the tmp file
 rm -f $TMPFILE
