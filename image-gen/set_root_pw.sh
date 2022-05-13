@@ -16,7 +16,7 @@ fi
 # make a new shadow file
 TMPFILE=`mktemp`
 cat /etc/shadow | grep -v "^root:" > $TMPFILE
-echo "root:$rootpw:18700:0:99999:7:::" | cat - $TMPFILE  > /etc/shadow
+echo "$rootpw:18700:0:99999:7:::" | cat - $TMPFILE  > /etc/shadow
 
 # clean up the tmp file
 rm -f $TMPFILE
