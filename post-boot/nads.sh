@@ -35,9 +35,9 @@ cat << EOF > plugins/nads.yaml
 - nads:
     provIntf: '$provIntf'
     maxLLDPWait: 60
-    reboot: False
+    reboot: True
 EOF
 
-# now we try to run NADS
-mprov_jobserver -r -c ./jobserver.yaml 
+# now we try to run NADS, and don't register as a jobserver.
+mprov_jobserver -r -d -c ./jobserver.yaml 
 
