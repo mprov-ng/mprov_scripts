@@ -32,7 +32,7 @@ cat << EOF > /etc/mprov/plugins/script-runner.yaml
 EOF
 
 # the systemd service file
-cat << EOF > /usr/lib/systemd/system/mprov_jobserver.service
+cat << EOF > /usr/lib/systemd/system/mprov_jobserver_postboot.service
 [Unit]
 Description=The mProv Jobserver for postboot scripts
 After=network-online.target
@@ -48,5 +48,5 @@ WantedBy=multi-user.target
 EOF
 
 # enable the systemd service
-systemctl enable mprov_jobserver
+systemctl enable mprov_jobserver_postboot
 
