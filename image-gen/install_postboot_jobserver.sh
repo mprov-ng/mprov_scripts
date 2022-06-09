@@ -41,7 +41,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 # runonce, in system mode, in post boot mode, use the /etc/mprov/jobserver.yaml
-ExecStart=/usr/local/bin/mprov_jobserver -r -s -b -c /etc/mprov/jobserver.yaml
+ExecStart=/usr/local/bin/mprov_jobserver -d -r -s -b -c /etc/mprov/jobserver.yaml
 
 [Install]
 WantedBy=multi-user.target
