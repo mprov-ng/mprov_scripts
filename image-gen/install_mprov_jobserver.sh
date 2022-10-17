@@ -27,9 +27,19 @@ cat << EOF > /etc/mprov/jobserver.yaml
       - image-sync
       - mprov-webserver
       - image-delete
-      - repo-update
+      #- repo-update
 - !include plugins/*.yaml
 EOF
+chmod 600 /etc/mprov/jobserver.yaml
+
+cp /usr/local/lib/python3.8/site-packages/mprov_jobserver/plugins/*.yaml /etc/mprov/plugins/
+
+cat << EOF > /etc/mprov/plugins/image-sync.yaml
+- image-sync:
+    imageDir: '/export/images'
+    imageList: null
+EOF
+chmod 600 /etc/mprov/plugins/image-sync.yaml
 
 # the systemd service file
 cat << EOF > /usr/lib/systemd/system/mprov-jobserver.service
@@ -41,11 +51,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 # runonce, in system mode, in post boot mode, use the /etc/mprov/jobserver.yaml
-ExecStart=/usr/local/bin/mprov_jobserver -c /etc/mprov/script-runner.yaml
+ExecStart=/usr/local/bin/mprov_jobserver -c /etc/mprov/jobserver.yaml
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable mprov-jobserver

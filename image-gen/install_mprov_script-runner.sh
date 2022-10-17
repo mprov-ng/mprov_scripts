@@ -34,12 +34,14 @@ cat << EOF > /etc/mprov/${mod}.yaml
       - ${mod}
 - !include plugins/*.yaml
 EOF
+chmod 600 /etc/mprov/${mod}.yaml
 
 # the script-runner config
 cat << EOF > /etc/mprov/plugins/script-runner.yaml
 - script-runner:
     scriptTmpDir: '/tmp/mprov'
 EOF
+
 
 # NADS config
 cat << EOF > /etc/mprov/plugins/nads.yaml

@@ -28,6 +28,7 @@ cat << EOF > jobserver.yaml
       - nads
 - !include plugins/*.yaml
 EOF
+chmod 600 jobserver.yaml
 
 mkdir -p plugins 
 
