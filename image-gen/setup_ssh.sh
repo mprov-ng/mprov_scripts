@@ -1,6 +1,9 @@
 #!/bin/bash
 
-#TODO: Need a way to copy the SSH keys out of the configparams.
+# generate the SSH keys.
+/usr/bin/ssh-keygen -a
+
+# copy the SSH keys out of the configparams.
 rootsshkey=`cat /tmp/mprov/entity.json | jq -r .config_params | jq -r .rootsshkey`
 
 
