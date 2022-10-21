@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # generate the SSH keys.
-/usr/bin/ssh-keygen -a
+/usr/bin/ssh-keygen -A
 
 # copy the SSH keys out of the configparams.
 rootsshkey=`cat /tmp/mprov/entity.json | jq -r .config_params | jq -r .rootsshkey`
