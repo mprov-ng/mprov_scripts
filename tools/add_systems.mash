@@ -1,0 +1,30 @@
+#!/usr/local/bin/mash
+
+connect
+let sysStart = 1
+let sysEnd = 40
+let sysPadding = 3 
+let sysImg = compute
+let sysSubnet=172.16.1
+let sysBmcSubnet=172.16.10
+let switchName=Rack-A9_Top_Switch
+let bmcUser=root
+let bmcPass=root
+seq nodeNums {{ sysStart }} {{ sysEnd }} {{ sysPadding }}
+foreach nodeNum in nodeNums
+
+print Creating System c{{nodeNum}}
+create systems.models.System hostname=c{{nodeNum}} created_by=1 tmpfs_root_size=0 stateful=0
+let nodeId = {{ MPROV_RESULT['id'] }}
+#get the switchport
+get networks.models.Switch hostname={{switchName}}
+# get returns an array of objects, even if there is only 1, so need two indexes/elements
+let switchId = {{ MPROV_RESULT[0]['id'] }}
+get networks.models.SwitchPort switch={{ switchId }} name={{nodeNum | int()}} 
+let portId = {{ MPROV_RESULT[0]['id'] }}
+
+# add the nic
+create systems.models.NetworkInterface name=ens0 hostname=c{{nodeNum}} ipaddress={{sysSubnet}}.{{nodeNum | int()}} switch_port={{portId}} bootable=1 system={{nodeId}}
+
+create systems.models.SystemBMC system={{nodeId}} ipaddress={{sysBmcSubnet}}.{{nodeNum | int()}} username={{bmcUser}} password={{bmcPass}}
+endforeach

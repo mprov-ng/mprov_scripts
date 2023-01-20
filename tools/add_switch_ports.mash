@@ -1,0 +1,12 @@
+#!/usr/local/bin/mash
+# This is a mash script to  generate ports for a switch.  Change the 'let' variables to match
+# what you are trying to create.
+connect
+let switchId = 2
+let networkId = 2
+let switchStartPort = 1
+let switchEndPort = 48
+seq tmpSeq {{ switchStartPort }} {{ switchEndPort }}
+foreach i in tmpSeq
+create networks.models.SwitchPort name={{ i }} switch={{switchId}} networks={{networkId}}
+endforeach
