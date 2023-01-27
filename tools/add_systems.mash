@@ -5,8 +5,9 @@ let sysStart = 1
 let sysEnd = 40
 let sysPadding = 3 
 let sysImg = compute
+let sysModel = poweredge-c6320-dell-inc
 let sysSubnet=172.16.1
-let sysBmcSubnet=172.16.10
+let sysBmcSubnet=172.16.11
 let switchName=Rack-A9_Top_Switch
 let bmcUser=root
 let bmcPass=root
@@ -14,7 +15,7 @@ seq nodeNums {{ sysStart }} {{ sysEnd }} {{ sysPadding }}
 foreach nodeNum in nodeNums
 
 print Creating System c{{nodeNum}}
-create systems.models.System hostname=c{{nodeNum}} created_by=1 tmpfs_root_size=0 stateful=0
+create systems.models.System hostname=c{{nodeNum}} created_by=1 tmpfs_root_size=0 stateful=0 systemimage={{ sysImg }} systemmodel={{sysModel}}
 let nodeId = {{ MPROV_RESULT['id'] }}
 #get the switchport
 get networks.models.Switch hostname={{switchName}}
