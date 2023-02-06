@@ -1,0 +1,39 @@
+---
+- scripts:
+  - slug: set_root_pw_sh
+    name: Set Root Password
+    filename: image-gen/set_root_pw.sh
+    scriptType: image-gen
+  - slug: setup_ssh_sh
+    name: Setup SSH
+    filename: image-gen/setup_ssh.sh
+    scriptType: image-gen
+  - slug: install_mprov_script_runner_sh
+    name: Install the mProv Jobserver for Scipts/NADS
+    filename: image-gen/install_mprov_script-runner.sh
+    scriptType: image-gen
+  - slug: install_mprov_jobserver_sh
+    name: Install the mProv Jobserver for image/repo syncs.
+    filename: image-gen/install_mprov_jobserver.sh
+    scriptType: image-gen
+  - slug: extra_packages_sh
+    name: Install any extra packages specified in config params.
+    filename: image-gen/extra_packages.sh
+    scriptType: image-gen
+  - slug: enable_and_run_jobserver_sh
+    name: Enable and Run the mProv jobserver Postboot.
+    filename: post-boot/enable_and_run_jobserver.sh
+    scriptType: post-boot
+  - slug: localtempdisk_py
+    name: Build Local Temp disk.
+    filename: post-boot/localTempDisk.py
+    scriptType: post-boot
+  - slug: register_ipv6_ll_py
+    name: Register the IPv5 Link Local address with the mPCC
+    filename: post-boot/register_IPv6_ll.py
+    scriptType: post-boot
+  - slug: setupbmc_py
+    name: Setup BMC from mPCC params.
+    filename: post-boot/setupBMC.py
+    scriptType: post-boot
+    
