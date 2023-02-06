@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# This script will install the mprov_jobserver to run script-runner.
+# This script will install the mprov_jobserver to run script-runner or NADS.
 # It will make some files in /etc/mprov/ for the jobserver and
-# the script-runner plugins.  script-runner should handle
-# all the rest of the setup for the postboot scripts after
-# it runs in the system.
+# the script-runner/nads plugins.  The script-runner handles image-gen and post-boot
+# scripts run in images and after a system boots.  This script also includes 
+# installing the mprov-nads service into the nads image.  This allows for node
+# auto detection.
 cd /tmp/mprov
 
 # get some initial variables.
