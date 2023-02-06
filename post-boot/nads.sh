@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#DEPRICATED!
+
+exit 0
+
 # This script is meant to be used in the '__nads__' system image 
 # after it boots, to attempt to autodetect a system.  This script
 # will create a jobserver.yaml, start the jobserver and run NADS.
