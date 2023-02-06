@@ -6,9 +6,10 @@ let sysEnd = 40
 let sysPadding = 3 
 let sysImg = compute
 let sysModel = poweredge-c6320-dell-inc
-let sysSubnet=172.16.1
-let sysBmcSubnet=172.16.11
+let sysSubnet=172.16.11
+let sysBmcSubnet=172.17.11
 let switchName=Rack-A9_Top_Switch
+let bmcNetwork = 2
 let bmcUser=root
 let bmcPass=root
 seq nodeNums {{ sysStart }} {{ sysEnd }} {{ sysPadding }}
@@ -27,5 +28,5 @@ let portId = {{ MPROV_RESULT[0]['id'] }}
 # add the nic
 create systems.models.NetworkInterface name=ens0 hostname=c{{nodeNum}} ipaddress={{sysSubnet}}.{{nodeNum | int()}} switch_port={{portId}} bootable=1 system={{nodeId}}
 
-create systems.models.SystemBMC system={{nodeId}} ipaddress={{sysBmcSubnet}}.{{nodeNum | int()}} username={{bmcUser}} password={{bmcPass}}
+create systems.models.SystemBMC system={{nodeId}} ipaddress={{sysBmcSubnet}}.{{nodeNum | int()}} username={{bmcUser}} password={{bmcPass}} network={{bmcNetwork}}
 endforeach
