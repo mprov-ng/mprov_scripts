@@ -5,11 +5,11 @@ let sysStart = 1
 let sysEnd = 40
 let sysPadding = 3 
 let sysImg = compute
-let sysModel = poweredge-c6320-dell-inc
+let sysModel = dell-inc-poweredge-c6320
 let sysSubnet=172.16.11
 let sysBmcSubnet=172.17.11
-let switchName=Rack-A9_Top_Switch
-let bmcNetwork = 2
+let switchName=switch1
+let bmcNetwork = 1
 let bmcUser=root
 let bmcPass=root
 seq nodeNums {{ sysStart }} {{ sysEnd }} {{ sysPadding }}
