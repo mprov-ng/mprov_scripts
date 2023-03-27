@@ -51,7 +51,7 @@
   pk: register_ipv6_ll_py
   fields: 
     slug: register_ipv6_ll_py
-    name: Register the IPv5 Link Local address with the mPCC
+    name: Register the IPv6 Link Local address with the mPCC
     filename: post-boot/register_IPv6_ll.py
     scriptType: post-boot
 - model: scripts.script
