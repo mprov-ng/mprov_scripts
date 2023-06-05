@@ -78,7 +78,17 @@ do
     then
       role=`basename -s .git $role`
     fi
-    ANSIBLE_ROLES_PATH="/tmp/mprov/ansible/roles" ansible localhost -c local -e "@variables.json" --module-name include_role --args name="$role"
+    
+    cat <<- EOF > /tmp/role.yaml
+    - hosts: localhost
+      become: true
+      gather_facts: true
+      tasks:
+        - name: Import role $role
+          ansible.builtin.include_role:
+            name: $role
+EOF
+    ANSIBLE_ROLES_PATH="/tmp/mprov/ansible/roles" ANSIBLE_GATHER=implicit ansible-playbook -i localhost, -c local -e "@variables.json" /tmp/role.yaml
 
   fi
 done
