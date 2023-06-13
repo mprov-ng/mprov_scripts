@@ -61,3 +61,32 @@
     name: Setup BMC from mPCC params.
     filename: post-boot/setupBMC.py
     scriptType: post-boot
+- model: scripts.script
+  pk: run_ansible_post_sh
+  fields: 
+    slug: run_ansible_post_sh
+    name: Run Ansible stuff in Post Boot
+    filename: image-gen/run_ansible.sh
+    scriptType: post-boot
+- model: scripts.script
+  pk: run_ansible_image_sh
+  fields: 
+    slug: run_ansible_image_sh
+    name: Run Ansible stuff in Image Generation
+    filename: image-gen/run_ansible.sh
+    scriptType: image-gen
+- model: scripts.script
+  pk: setup_mprov_share_mount_sh
+  fields: 
+    slug: setup_mprov_share_mount_sh
+    name: Setup the mProv network share mount
+    filename: image-gen/setup_mprov_share_mount.sh
+    scriptType: image-gen
+- model: scripts.script
+  pk: create_slurm_client_service_sh
+  fields: 
+    slug: create_slurm_client_service_sh
+    name: Create Slurm/Munge Client Services.
+    filename: image-gen/create_slurm_client_services.sh
+    scriptType: image-gen
+    dependsOn: ['setup_mprov_share_mount_sh']
