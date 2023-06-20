@@ -14,6 +14,6 @@ export PATH=/opt/mprov/bin:$PATH
 
 if [ "$USER" == "root" ]
 then
-  export PATH=/opt/sbin/:$PATH
+  export PATH=/opt/mprov/sbin/:$PATH
 fi
 EOF
