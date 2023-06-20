@@ -1,5 +1,5 @@
 #!/bin/bash
-
+cd /tmp/mprov/
 mprovURL=`cat entity.json | jq .mprovURL -r`
 mpccHost=`echo "$mprovURL" | awk -F/ '{print $3}'`
 
