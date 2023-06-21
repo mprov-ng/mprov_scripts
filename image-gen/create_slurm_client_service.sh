@@ -1,7 +1,59 @@
 #!/bin/bash
 
-# slurm needs munge
-dnf -y install munge
+# slurm needs ... a bunch of stuff...
+dnf -y --enablerepo=powertools install \
+  munge \
+  pam \
+  json-c \
+  libyaml \
+  numactl \
+  libjwt \
+  http-parser \
+  hwloc \
+  hwloc-plugins \
+  pmix \
+  ucx \
+  lz4 \
+  freeipmi \
+  rrdtool \
+  dbus \
+  gtk2 \
+  man2html \
+  readline \
+  libcurl \
+  lua \
+  cuda-*-11-7 \
+  kmod-iser \
+  kmod-isert \
+  kmod-kernel-mft-mlnx \
+  kmod-knem \
+  kmod-mlnx-ofa_kernel \
+  kmod-srp \
+  hcoll \
+  ibutils2 \
+  infiniband-diags \
+  infiniband-diags-compat \
+  libibumad \
+  libibverbs \
+  libibverbs-utils \
+  librdmacm \
+  librdmacm-utils \
+  mft \
+  mlnx-ethtool \
+  mlnx-iproute2 \
+  mlnx-ofa_kernel \
+  mlnx-ofa_kernel-devel \
+  mlnx-ofed-basic \
+  mstflint \
+  ofed-scripts \
+  python3-pyverbs \
+  rdma-core \
+  rdma-core-devel \
+  sharp \
+  ucx-cma \
+  ucx-devel \
+  ucx-ib \
+  ucx-knem
 
 # munge key should be in /opt/mprov/etc/munge
 rm -rf /etc/munge/munge.key
