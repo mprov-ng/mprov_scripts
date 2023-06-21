@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# add a munge user
+useradd -u 449 munge
+
+# add a slurm user
+useradd -u 450 slurm
+
 # slurm needs ... a bunch of stuff...
 dnf -y --enablerepo=powertools install \
   munge \
@@ -56,8 +62,8 @@ dnf -y --enablerepo=powertools install \
   ucx-knem
 
 # munge key should be in /opt/mprov/etc/munge
-rm -rf /etc/munge/munge.key
-ln -s /opt/mprov/etc/munge/munge.key /etc/munge/munge.key
+rm -rf /etc/munge
+ln -s /opt/mprov/etc/munge/ /etc/munge
 
 # enable munge
 systemctl enable munge
