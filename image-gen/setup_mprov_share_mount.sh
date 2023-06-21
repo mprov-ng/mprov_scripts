@@ -12,7 +12,7 @@ grep -qF '/export/mprov' /etc/fstab || echo "${mpccHost}:/export/mprov    /opt/m
 cat << EOF > /etc/profile.d/99-mprov.sh
 export PATH=/opt/mprov/bin:$PATH
 
-if [ "$USER" == "root" ]
+if [ "\$USER" == "root" ]
 then
   export PATH=/opt/mprov/sbin/:$PATH
 fi
