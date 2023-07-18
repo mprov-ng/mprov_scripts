@@ -65,9 +65,6 @@ dnf -y --enablerepo=powertools install \
 rm -rf /etc/munge
 ln -s /opt/mprov/etc/munge/ /etc/munge
 
-# enable munge
-systemctl enable munge
-
 # setup the slurm config
 rm -rf /etc/slurm/slurm.conf
 mkdir -p /etc/slurm/ # just in case.
@@ -78,11 +75,12 @@ cat << EOF > /usr/lib/systemd/system/slurmd.service
 [Unit]
 Description=Slurm node daemon
 After=munge.service network.target remote-fs.target
+Requires=munge.service
 
 [Service]
 Type=simple
 EnvironmentFile=-/opt/mprov/etc/sysconfig/slurmd
-ExecStart=/opt/mprov/sbin/slurmd -D $SLURMD_OPTIONS
+ExecStart=/opt/mprov/sbin/slurmd -Z --conf "Feature=compute"
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 LimitNOFILE=131072
@@ -96,3 +94,24 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable slurmd
+
+cat << EOF > /etc/systemd/system/munge.service
+[Unit]
+Description=MUNGE authentication service
+Documentation=man:munged(8)
+After=remote-fs.target
+Requires=remote-fs.target
+After=time-sync.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/munged
+PIDFile=/var/run/munge/munged.pid
+User=munge
+Group=munge
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable munge
