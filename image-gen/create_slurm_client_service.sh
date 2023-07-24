@@ -80,7 +80,7 @@ Requires=munge.service
 [Service]
 Type=simple
 EnvironmentFile=-/opt/mprov/etc/sysconfig/slurmd
-ExecStart=/opt/mprov/sbin/slurmd -Z --conf "Feature=compute"
+ExecStart=/opt/mprov/sbin/slurmd -D -Z --conf "Feature=compute"
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 LimitNOFILE=131072
