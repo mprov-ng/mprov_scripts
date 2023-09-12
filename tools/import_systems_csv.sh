@@ -6,7 +6,7 @@
 #   nodename,mac,ipaddress
 # 
 
-help {
+mashhelp() {
   echo "Usage: $0 <file> [-i iface_name] [-m image_name]" >&2
   exit 1
 }
@@ -20,7 +20,7 @@ fi
 
 if [ "$1" == "" ]
 then
-  help
+  mashhelp
 fi
 
 if [ ! -e "$1" ]
@@ -63,14 +63,20 @@ do
   m_hostname=${DATA[0]}
   m_macaddr=${DATA[1]}
   m_ipaddr=${DATA[2]}
+  if [ "${DATA[2]}" == "" ]
+  then
+    #echo "Resolving host ${m_hostname}"
+    m_ipaddr=`host ${DATA[0]} | awk '{print $4}'`
+    
+  fi
   cat << EOF >> /tmp/mash_node_import
 
 print Creating System ${m_hostname}
-create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 stateful=0 systemimage=${imageName}
+create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 stateful=0 systemimage=${imageName} stateful=1 disks=['compute-state-lite']
 let nodeId = {{ MPROV_RESULT['id'] }}
 
 # add the nic
-create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddress=${{m_ipaddr}} bootable=1 system={{nodeId}}
+create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddress=${m_ipaddr} bootable=1 system={{nodeId}} mac='${m_macaddr}'
 
 
 EOF
@@ -78,4 +84,4 @@ EOF
 done
 
 # Engage...
-echo "connect" | cat << /tmp/mash_node_import | mash
+echo "connect" | cat - /tmp/mash_node_import | mash
