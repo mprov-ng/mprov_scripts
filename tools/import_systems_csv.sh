@@ -34,6 +34,12 @@ shift
 
 interfaceName=eno1
 imageName=compute
+mgmtNet=172.20.
+bmcNet=172.29.
+bmcNetId=2
+nodeNetId=1
+bmcUser=admin
+bmcPass=changeme
 
 while [[ $# -gt 0 ]]
 do
@@ -69,6 +75,9 @@ do
     m_ipaddr=`host ${DATA[0]} | awk '{print $4}'`
     
   fi
+  # let's get the bmc ip
+  bmcIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$bmcNet/g"`
+
   cat << EOF >> /tmp/mash_node_import
 
 print Creating System ${m_hostname}
@@ -76,7 +85,10 @@ create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size
 let nodeId = {{ MPROV_RESULT['id'] }}
 
 # add the nic
-create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddress=${m_ipaddr} bootable=1 system={{nodeId}} mac='${m_macaddr}'
+create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddress=${m_ipaddr} bootable=1 system={{nodeId}} mac='${m_macaddr}' network=${nodeNetId}
+
+# add the bmc
+create systems.models.SystemBMC system={{nodeId}} ipaddress=${bmcIp} username=${bmcUser} password=${bmcPass} network=${bmcNetId}
 
 
 EOF
