@@ -7,7 +7,7 @@ useradd -u 449 munge
 useradd -u 450 slurm
 
 # slurm needs ... a bunch of stuff...
-dnf -y --enablerepo=powertools install \
+dnf -y --enablerepo=powertools install --skip-broken --nobest \
   munge \
   pam \
   json-c \
@@ -28,8 +28,6 @@ dnf -y --enablerepo=powertools install \
   readline \
   libcurl \
   lua \
-  cuda-*-11-7 \
-  kmod-iser \
   kmod-isert \
   kmod-kernel-mft-mlnx \
   kmod-knem \
@@ -94,6 +92,7 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable slurmd
+systemctl start slurmd
 
 cat << EOF > /etc/systemd/system/munge.service
 [Unit]
@@ -115,3 +114,4 @@ Restart=on-abort
 WantedBy=multi-user.target
 EOF
 systemctl enable munge
+systemctl start munge
