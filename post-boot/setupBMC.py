@@ -27,7 +27,7 @@ class MScript(MProvScript):
       # take the first octet and invert the 2nd to last bit.
       mac_octets[0] = "%X" % (bytearray.fromhex(mac_octets[0])[0] ^ 0x2)
       return f"fe80::{mac_octets[0]}{mac_octets[1]}:{mac_octets[2]}ff:fe{mac_octets[3]}:{mac_octets[4]}{mac_octets[5]}"
-
+  
   def run(self):
       
       print("Attempting to get our BMC info from the MPCC...")
@@ -57,6 +57,12 @@ class MScript(MProvScript):
           print(result.stderr)
           return
         
+        result = subprocess.run(["/usr/bin/ipmitool", "lan", "set", "1", "ipsrc", "static"])
+        if result.returncode:
+          print(result.stdout)
+          print(result.stderr)
+          return
+
         result = subprocess.run(["/usr/bin/ipmitool", "lan", "set", "1", "ipaddr", f"{bmc['ipaddress']}"])
         if result.returncode:
           print(result.stdout)

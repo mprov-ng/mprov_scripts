@@ -10,10 +10,10 @@ mkdir -p /opt/mprov
 grep -qF '/export/mprov' /etc/fstab || echo "${mpccHost}:/export/mprov    /opt/mprov    nfs defaults    0 0" >> /etc/fstab
 
 cat << EOF > /etc/profile.d/99-mprov.sh
-export PATH=/opt/mprov/bin:$PATH
+export PATH=/opt/mprov/bin:\$PATH
 
 if [ "\$USER" == "root" ]
 then
-  export PATH=/opt/mprov/sbin/:$PATH
+  export PATH=/opt/mprov/sbin/:\$PATH
 fi
 EOF

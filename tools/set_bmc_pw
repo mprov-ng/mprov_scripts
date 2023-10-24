@@ -1,0 +1,15 @@
+#!/usr/local/bin/mash
+
+connect
+# get a list of the systems
+get systems.models.System hostname=sr
+
+let systems=$MPROV_RESULT
+foreach sys in systems
+
+  get systems.models.SystemBMC system={{sys['id']}}
+  let bmc=$MPROV_RESULT
+  print Updating BMC for {{sys['hostname']}}
+  update systems.models.SystemBMC id={{bmc[0]['id']}} password=changeme
+
+endforeach

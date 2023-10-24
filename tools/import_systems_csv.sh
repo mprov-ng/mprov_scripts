@@ -40,6 +40,8 @@ bmcNetId=2
 nodeNetId=1
 bmcUser=admin
 bmcPass=changeme
+ibNet=172.21.
+ibNetId=4
 
 while [[ $# -gt 0 ]]
 do
@@ -77,11 +79,12 @@ do
   fi
   # let's get the bmc ip
   bmcIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$bmcNet/g"`
+  ibIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$ibNet/g"`
 
   cat << EOF >> /tmp/mash_node_import
 
 print Creating System ${m_hostname}
-create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 stateful=0 systemimage=${imageName} stateful=1 disks=['compute-state-lite']
+create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 systemimage=${imageName} stateful=1 disks=['compute-state-lite']
 let nodeId = {{ MPROV_RESULT['id'] }}
 
 # add the nic
@@ -90,6 +93,8 @@ create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddres
 # add the bmc
 create systems.models.SystemBMC system={{nodeId}} ipaddress=${bmcIp} username=${bmcUser} password=${bmcPass} network=${bmcNetId}
 
+# add the ib interface
+create systems.models.NetworkInterface name=ib0 hostname=${m_hostname} ipaddress=${ibIp} system={{nodeId}} network=${ibNetId}
 
 EOF
 
