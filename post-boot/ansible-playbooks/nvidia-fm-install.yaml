@@ -1,0 +1,22 @@
+---
+- name: Install NVIDIA Stuff
+  hosts: all
+  tasks:
+    - name: Install Fabric Manager
+      ansible.builtin.dnf:
+        name: "@nvidia-driver:latest-dkms/fm"
+        state: present
+    - name: Install cuda-toolkit
+      ansible.builtin.dnf:
+        name: cuda-toolkit
+        state: present
+    - name: Enable Fabric Manager
+      ansible.builtin.service:
+        name: nvidia-fabricmanager
+        enabled: true
+      ignore_errors: true
+    - name: Start Fabric Manager
+      ansible.builtin.service:
+        name: nvidia-fabricmanager
+        state: started
+      ignore_errors: true
