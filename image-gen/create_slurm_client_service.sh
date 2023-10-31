@@ -77,9 +77,9 @@ Requires=munge.service
 
 [Service]
 Type=simple
-EnvironmentFile=-/opt/mprov/etc/sysconfig/slurmd
-ExecStart=/opt/mprov/sbin/slurmd -D -Z --conf "Feature=compute"
-ExecReload=/bin/kill -HUP $MAINPID
+EnvironmentFile=-/etc/sysconfig/slurmd
+ExecStart=/opt/mprov/sbin/slurmd -D -Z --conf "Feature=compute" \$SLURM
+ExecReload=/bin/kill -HUP \$MAINPID
 KillMode=process
 LimitNOFILE=131072
 LimitMEMLOCK=infinity
