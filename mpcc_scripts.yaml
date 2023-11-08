@@ -89,4 +89,4 @@
     name: Create Slurm/Munge Client Services.
     filename: image-gen/create_slurm_client_service.sh
     scriptType: image-gen
-    dependsOn: ['setup_mprov_share_mount_sh']
+    
