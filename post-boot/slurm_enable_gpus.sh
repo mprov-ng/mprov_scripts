@@ -15,15 +15,15 @@ then
   . /etc/sysconfig/slurmd
 fi
 
-grep -qF '# ADDED BY MPROV' /etc/sysconfig/slurmd
+grep -qF 'Gres=gpu' /etc/sysconfig/slurmd
 if [ "$?" != "0" ]
 then
   # entry not found, add it.
-  echo "SLURM=\" --conf Gres=gpu:$gpus\" # ADDED BY MPROV" >> /etc/sysconfig/slurmd
+  echo "SLURM=\" --conf Gres=gpu:$gpus\"" >> /etc/sysconfig/slurmd
 else
   # entry found, update it.
-  cat /etc/sysconfig/slurmd | grep -v "ADDED BY MPROV" > /tmp/slurmd
-  echo "SLURM=\" --conf Gres=gpu:$gpus\" # ADDED BY MPROV" >> /tmp/slurmd
+  cat /etc/sysconfig/slurmd | grep -v "Gres=gpu" > /tmp/slurmd
+  echo "SLURM=\" --conf Gres=gpu:$gpus\"" >> /tmp/slurmd
   /bin/mv -f /tmp/slurmd /etc/sysconfig/slurmd
 fi
 systemctl daemon-reload
