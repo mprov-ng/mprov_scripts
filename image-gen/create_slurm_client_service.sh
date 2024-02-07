@@ -7,7 +7,7 @@ useradd -u 449 munge
 useradd -u 450 slurm
 
 # slurm needs ... a bunch of stuff...
-dnf -y --enablerepo=powertools install --skip-broken --nobest \
+dnf -y  install --skip-broken --nobest \
   munge \
   pam \
   json-c \
