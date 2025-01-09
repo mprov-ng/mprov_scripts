@@ -7,7 +7,7 @@ from mprov_jobserver.script import MProvScript
 
 
 class MScript(MProvScript):
- 
+
   def __init__(self, **kwargs):
     print("Setting Up BMC")
     super().__init__(**kwargs)
@@ -27,9 +27,9 @@ class MScript(MProvScript):
       # take the first octet and invert the 2nd to last bit.
       mac_octets[0] = "%X" % (bytearray.fromhex(mac_octets[0])[0] ^ 0x2)
       return f"fe80::{mac_octets[0]}{mac_octets[1]}:{mac_octets[2]}ff:fe{mac_octets[3]}:{mac_octets[4]}{mac_octets[5]}"
-  
+
   def run(self):
-      
+
       print("Attempting to get our BMC info from the MPCC...")
       response = self.session.get(f"{self.mprovURL}systems/?hostname={socket.gethostname()}")
       if response.status_code != 200:
@@ -40,7 +40,7 @@ class MScript(MProvScript):
       except Exception as e:
         print("Error: Unable to parse mPCC response. {e}")
         sys.exit(1)
-      
+
       response = self.session.get(f"{self.mprovURL}systembmcs/?system={system['id']}&detail")
       if response.status_code == 200:
         bmc = {}
@@ -56,7 +56,7 @@ class MScript(MProvScript):
           print(result.stdout)
           print(result.stderr)
           return
-        
+
         result = subprocess.run(["/usr/bin/ipmitool", "lan", "set", "1", "ipsrc", "static"])
         if result.returncode:
           print(result.stdout)
@@ -75,18 +75,34 @@ class MScript(MProvScript):
           print(result.stderr)
           return
 
+        if bmc['vlan'] == 0 and bmc['network']['vlan'] == 0:
+          bmc['vlan'] = 'off'
+        elif bmc['vlan'] == 0:
+          bmc['vlan'] = bmc['network']['vlan']
+        result = subprocess.run(["/usr/bin/ipmitool", "lan",  "set",  "1",  "vlan", "id",  f"{bmc['vlan']}"])
+        if result.returncode:
+          print(result.stdout)
+          print(result.stderr)
+          return
+
+        result = subprocess.run(["/usr/bin/ipmitool", "lan",  "set",  "1",  "netmask",  f"{self.cidr_to_netmask(bmc['network']['netmask'])} "])
+        if result.returncode:
+          print(result.stdout)
+          print(result.stderr)
+          return
+
         result = subprocess.run(["/usr/bin/ipmitool", "user", "set", "name", "2", f"{bmc['username']}"])
         if result.returncode:
           print(result.stdout)
           print(result.stderr)
           return
-        
+
         result = subprocess.run(["/usr/bin/ipmitool", "user", "set", "password", "2", f"{bmc['password']}"])
         if result.returncode:
           print(result.stdout)
           print(result.stderr)
           return
-        
+
         result = subprocess.run(["/usr/bin/ipmitool", "user", "enable", "2"])
         if result.returncode:
           print(result.stdout)
@@ -96,7 +112,7 @@ class MScript(MProvScript):
         print(f"Error: Unable to get bmc info, {response.status_code}: {response.text}")
 
       bmcMac = None
-      for line in sh.ipmitool(['lan', 'print'], _iter=True):
+      for line in sh.ipmitool(['lan', 'print'], _iter=True, _ok_code=(0,1)):
         if line.startswith("MAC Address"):
           _, bmcMac = line.split(":", 1)
           bmcMac = bmcMac.strip()
@@ -107,13 +123,13 @@ class MScript(MProvScript):
           "id": bmc['id'],
           "mac": bmcMac,
           "ipv6ll": bmcLL,
-        }      
+        }
         response = self.session.patch(f"{self.mprovURL}systembmcs/{bmc['id']}/", data=json.dumps(data))
         if response.status_code != 200:
           print(f"Error updating bmc mac.")
           print(response.status_code)
           print(response.text)
-      
+
 
   def main(self):
     self.startSession()
@@ -125,6 +141,6 @@ def main():
 
 def __main__():
     return main()
-    
+
 if __name__ == "__main__":
     sys.exit(main())
