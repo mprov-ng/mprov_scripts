@@ -36,9 +36,16 @@ class MScript(MProvScript):
         print(f"Error: Unable to determine our ID from {socket.gethostname()}")
         sys.exit(1)
       try:
-        system = response.json()[0]
+        found=False
+        for system in response.json():
+          if system['hostname'] == socket.gethostname():
+            found=True
+            break
       except Exception as e:
         print("Error: Unable to parse mPCC response. {e}")
+        sys.exit(1)
+      if found != True:
+        print("Error: unable to find host in mPCC.")
         sys.exit(1)
 
       response = self.session.get(f"{self.mprovURL}systembmcs/?system={system['id']}&detail")
