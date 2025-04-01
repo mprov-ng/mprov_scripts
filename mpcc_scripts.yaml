@@ -1,18 +1,4 @@
 - model: scripts.script
-  pk: set_root_pw_sh
-  fields: 
-    slug: set_root_pw_sh
-    name: Set Root Password
-    filename: image-gen/set_root_pw.sh
-    scriptType: image-gen
-- model: scripts.script
-  pk: setup_ssh_sh
-  fields: 
-    slug: setup_ssh_sh
-    name: Setup SSH
-    filename: image-gen/setup_ssh.sh
-    scriptType: image-gen
-- model: scripts.script
   pk: install_mprov_script_runner_sh
   fields: 
     slug: install_mprov_script_runner_sh
