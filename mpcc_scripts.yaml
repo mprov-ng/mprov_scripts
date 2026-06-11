@@ -75,4 +75,11 @@
     name: Create Slurm/Munge Client Services.
     filename: image-gen/create_slurm_client_service.sh
     scriptType: image-gen
+- model: scripts.script
+  pk: add_mitigations_off_sh
+  fields: 
+    slug: add_mitigations_off_sh
+    name: Add mitigations=off to kernel boot command line.
+    filename: post-boot/add-mitigations-off.sh
+    scriptType: post-boot
     
