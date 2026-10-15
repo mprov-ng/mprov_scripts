@@ -62,20 +62,6 @@
     filename: image-gen/run_ansible.sh
     scriptType: image-gen
 - model: scripts.script
-  pk: setup_mprov_share_mount_sh
-  fields: 
-    slug: setup_mprov_share_mount_sh
-    name: Setup the mProv network share mount
-    filename: image-gen/setup_mprov_share_mount.sh
-    scriptType: image-gen
-- model: scripts.script
-  pk: create_slurm_client_service_sh
-  fields: 
-    slug: create_slurm_client_service_sh
-    name: Create Slurm/Munge Client Services.
-    filename: image-gen/create_slurm_client_service.sh
-    scriptType: image-gen
-- model: scripts.script
   pk: add_mitigations_off_sh
   fields: 
     slug: add_mitigations_off_sh
