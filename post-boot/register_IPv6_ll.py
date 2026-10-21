@@ -51,16 +51,15 @@ class MScript(MProvScript):
         if interface['mac'] == netifaces.ifaddresses(lInterface)[AF_PACKET][0]['addr']:
           # we found a local, up interface, let's get it's IPv6 LL address.
           for v6ip in netifaces.ifaddresses(lInterface)[AF_INET6]:
-            if v6ip['addr'].startswith("fe80:"): 
-              # this is it, compare it to the ipv6ll entry for this interface in the mPCC
-              if interface['ipv6ll'] !=  v6ip['addr']:
-                # update it.
-                if "%" in v6ip['addr']:
-                  v6ip['addr'], _ = v6ip['addr'].split('%', 1)
-                interface['ipv6ll'] = v6ip['addr']
+            if v6ip['addr'].startswith("fe80:"):
+              # this is it.  Drop the %<iface> scope, which the mPCC doesn't
+              # store, then compare it to the ipv6ll entry in the mPCC.
+              ipv6ll, _, _ = v6ip['addr'].partition('%')
+              if interface['ipv6ll'] != ipv6ll:
+                # update it.  Send only ipv6ll, so nothing else on the
+                # interface is overwritten with what we read earlier.
                 url = f"{self.mprovURL}networkinterfaces/{interface['id']}/"
-                # print(json.dumps(interface))
-                result = self.session.patch(url, data=json.dumps(interface))
+                result = self.session.patch(url, data=json.dumps({'ipv6ll': ipv6ll}))
                 if result.status_code != 200:
                   print("Error: Unable to update mPCC")
                   # print(f"{result.text}")
