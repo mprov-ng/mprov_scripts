@@ -1,16 +1,21 @@
 #!/bin/bash
+#
+# Deprecated: set the OS distro's Root SSH Keys instead, which the jobserver
+# writes when it builds the image.  This script only replaces root's
+# authorized_keys if the rootsshkey config param is set.
 
 # generate the SSH keys.
 /usr/bin/ssh-keygen -A
 
 # copy the SSH keys out of the configparams.
-rootsshkey=`cat /tmp/mprov/entity.json | jq -r .config_params | jq -r .rootsshkey`
+rootsshkey=`jq -r '.config_params.rootsshkey // empty' /tmp/mprov/entity.json`
 
 
 if [ "$rootsshkey" == "" ]
 then
-  echo "Error: No rootsshkey specified, exiting." >&2
-  exit 1
+  # leave the keys the distro set alone.
+  echo "No rootsshkey in the config params, leaving root's authorized_keys unchanged."
+  exit 0
 fi
 
 # this should be the only key in root's authorized keys.

@@ -3,7 +3,7 @@
 # Sets the number of gpus available via the /etc/sysconfig/slurm file
 # If no count specified in the config, default to 1
 
-gpus=`cat /tmp/mprov/entity.json | jq -r .config_params | jq -r .gpus`
+gpus=`jq -r '.config_params.gpus // empty' /tmp/mprov/entity.json`
 
 if [ "$gpus" == "" ]
 then
@@ -15,7 +15,7 @@ then
   . /etc/sysconfig/slurmd
 fi
 
-grep -qF 'Gres=gpu' /etc/sysconfig/slurmd
+grep -qsF 'Gres=gpu' /etc/sysconfig/slurmd
 if [ "$?" != "0" ]
 then
   # entry not found, add it.
