@@ -146,7 +146,7 @@ class mProvStatelessDiskFormatter():
           # update /etc/fstab
           with open("/etc/fstab", "a") as fstab:
             fstab.write(f"UUID={partuuid}\t{part['mount']}\t\t{part['filesystem']}\tdefaults\t0 0\n")
-          sh.mount([f"{pdisk['mount']}"])
+          sh.mount([f"{part['mount']}"])
 
         partnum+=1
 
