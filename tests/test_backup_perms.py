@@ -19,6 +19,12 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 IMAGE = "mprov-scripts-test"
 
+
+@pytest.fixture(scope="session", autouse=True)
+def image():
+  subprocess.run(["docker", "build", "-q", "-t", IMAGE, str(REPO / "tests")],
+                 check=True, stdout=subprocess.DEVNULL)
+
 STUB_VENV = r"""
   mkdir -p /var/www/mprov_control_center/bin /var/www/mprov_control_center/media
   printf ':; deactivate() { :; }\n' > /var/www/mprov_control_center/bin/activate
