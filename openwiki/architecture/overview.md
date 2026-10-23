@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: mProv Script Execution Architecture
-description: How mprov_scripts fits into the mProv Control Center ecosystem — script types (image-gen vs post-boot), the mprov_jobserver and its script-runner/NADS/image-sync plugins, the /tmp/mprov/entity.json contract, Python MProvScript classes, and the shared NFS layout under /opt/mprov.
+description: How mprov_scripts fits into the mProv Control Center ecosystem — script types (image-gen vs post-boot), the mprov_jobserver and its script-runner/NADS/image-sync plugins, the /tmp/mprov/entity.json contract with null-safe config_params defaults (tested by the tests/ pytest suite), Python MProvScript classes, and the /data NFS share mount.
 tags: [mprov, macc, jobserver, architecture, provisioning, entity-json]
 ---
 
@@ -31,12 +31,12 @@ When the jobserver runs a script, it stages the invocation in `/tmp/mprov/` with
 
 | Field | Used by | Meaning |
 |---|---|---|
-| `mprovURL` | nearly every script, NFS mounts | Base URL of the mPCC API; the host part is also the NFS server for `/export/*` |
+| `mprovURL` | nearly every script, NFS mounts | Base URL of the mPCC API; the host part is also the default NFS server for `/export/data` |
 | `apikey` | jobserver configs, Python scripts | API credential for the mPCC |
-| `config_params` | extra_packages, set_root_pw, setup_ssh, slurm_enable_gpus | Free-form per-entity JSON: `extra_packages`, `rootpw`, `rootsshkey`, `gpus`, Ansible variables |
+| `config_params` | extra_packages, set_root_pw, setup_ssh, slurm_enable_gpus, setup_data_share_mount | Free-form per-entity JSON: `extra_packages`, `rootpw`, `rootsshkey`, `gpus`, `mprovDataShareHost`, Ansible variables |
 | `slug` | run_ansible.sh, install_mprov_script-runner.sh | Image slug when running in image-gen mode; `nads` selects the NADS module |
 
-Scripts treat missing config params as errors (`set_root_pw.sh`, `setup_ssh.sh`) or defaults (`slurm_enable_gpus.sh` defaults `gpus=1`). `config_params` doubles as the Ansible variable file: `run_ansible.sh` extracts it into `variables.json` and passes `-e @variables.json`.
+Scripts treat a missing or `null` config param as unset — via `jq` guards like `// empty` and `// []` — and fall back to their documented default (e.g. `slurm_enable_gpus.sh` defaults `gpus=1`; `set_root_pw.sh` leaves the distro password alone), never the literal string `null`. The pytest suite in `tests/` (`tests/test_config_params.py`, run in a Rocky 9 container from `tests/Dockerfile` with `dnf`/`systemctl` stubs, on push/PR via `.github/workflows/tests.yml`) enforces this for the param-reading scripts. `config_params` doubles as the Ansible variable file: `run_ansible.sh` extracts it into `variables.json` and passes `-e @variables.json`.
 
 ## Python post-boot scripts (MProvScript)
 
@@ -44,12 +44,11 @@ Three post-boot scripts are Python classes subclassing `MProvScript` from the `m
 
 ## Shared NFS layout
 
-Two image-gen scripts mount mPCC-host NFS exports into the image, establishing the shared-config plane consumed at boot:
+One image-gen script mounts an mPCC-host NFS export into the image:
 
-- `${mpccHost}:/export/mprov` → `/opt/mprov` ([setup_mprov_share_mount.sh](../../image-gen/setup_mprov_share_mount.sh)), plus a `profile.d` PATH addition for `/opt/mprov/{bin,sbin}`.
-- `${mpccHost}:/export/data` → `/data` ([setup_data_share_mount.sh](../../image-gen/setup_data_share_mount.sh)).
+- `${shareHost}:/export/data` → `/data` ([setup_data_share_mount.sh](../../image-gen/setup_data_share_mount.sh)), where `shareHost` comes from `config_params.mprovDataShareHost` (settable on the OS distro, a system group, or the image — e.g. a cluster-network name for the mPCC) and defaults to the host parsed from `mprovURL`.
 
-`/opt/mprov` then carries the authoritative cluster config: the munge key at `/opt/mprov/etc/munge`, `slurm.conf` at `/opt/mprov/etc/slurm/slurm.conf`, and the Slurm binaries at `/opt/mprov/sbin/slurmd` — all symlinked in by [create_slurm_client_service.sh](../../script-types/image-generation.md#slurm-and-munge-client-services). This is why `munge.service` is ordered `After=remote-fs.target` and `slurmd.service` requires it.
+The former `/export/mprov` → `/opt/mprov` mount and the Slurm/Munge client service it fed (`setup_mprov_share_mount.sh`, `create_slurm_client_service.sh`) were removed from this repo along with the mPCC's `/export/mprov` share dependency; clusters provide Slurm client setup themselves.
 
 ## Registration: mpcc_scripts.yaml
 
@@ -57,4 +56,5 @@ Two image-gen scripts mount mPCC-host NFS exports into the image, establishing t
 
 ## Operational docs
 
-The repo also carries a scheduled [OpenWiki update workflow](../operations/admin-tools.md#repository-automation) and AGENTS.md/CLAUDE.md banner blocks; these are documentation tooling, not part of the provisioning flow.
+The repo root also carries AGENTS.md/CLAUDE.md banner blocks pointing at these `openwiki/` docs; these are documentation tooling, not part of the provisioning flow.
+

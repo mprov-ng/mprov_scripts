@@ -1,7 +1,7 @@
 ---
 type: Playbook
 title: Admin Tools and Operations
-description: Command-line admin tools for operating an mProv Control Center — mash bulk scripts for systems/switch ports/BMC passwords, CSV node import, mPCC database and media backup, node-to-image capture with image-grab.sh, and the repository's OpenWiki automation.
+description: Command-line admin tools for operating an mProv Control Center — mash bulk scripts for systems/switch ports/BMC passwords, CSV node import, mPCC database and media backup, and node-to-image capture with image-grab.sh.
 tags: [mprov, macc, mash, backup, csv-import, image-grab, operations]
 ---
 
@@ -27,10 +27,6 @@ tags: [mprov, macc, mash, backup, csv-import, image-grab, operations]
 ## Catalog management
 
 `mpcc_scripts.yaml` at the repo root is the Django fixture that registers the repo's dispatchable scripts into the mPCC `scripts.script` model (see [Architecture Overview](../architecture/overview.md#registration-mpcc_scriptsyaml)). Keeping it in sync with new/renamed scripts in `image-gen/` and `post-boot/` is a manual step.
-
-## Repository automation
-
-`.github/workflows/openwiki-update.yml` runs OpenWiki (`openwiki code --update --print`) nightly to refresh the `openwiki/` docs and open a PR; the AGENTS.md/CLAUDE.md OpenWiki banner blocks are maintained by that run. Generated pages there should not be hand-edited except when explicitly asked.
 
 ## Changing this area
 

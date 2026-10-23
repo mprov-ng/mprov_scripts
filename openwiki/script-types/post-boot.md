@@ -7,17 +7,17 @@ tags: [mprov, post-boot, bmc, ipmi, slurm, gpu, cuda, disk-layout, hpc]
 
 # Post-Boot Scripts
 
-Scripts in `post-boot/` run on the physical node after it boots its provisioned image. They are dispatched by the `script-runner` jobserver plugin baked in by [install_mprov_script-runner.sh](image-generation.md#mprov-jobserver-installs), and receive `/tmp/mprov/entity.json` context per the [entity.json contract](../architecture/overview.md#the-entity-json-contract). Python scripts subclass `MProvScript` to get an authenticated mPCC REST session.
+Scripts in `post-boot/` run on the physical node after it boots its provisioned image. They are dispatched by the `script-runner` jobserver plugin baked in by [install_mprov_script-runner.sh](image-generation.md#mprov-jobserver-installs), and receive `/tmp/mprov/entity.json` context per the [entity.json contract](../architecture/overview.md#the-entityjson-contract). Python scripts subclass `MProvScript` to get an authenticated mPCC REST session.
 
 ## Node identity and hardware configuration
 
 - **`setupBMC.py`** (`MProvScript`) — self-service BMC configuration. The node looks itself up in the mPCC (`GET systems/?hostname=...`), fetches its `SystemBMC` record (`GET systembmcs/?system=<id>&detail`), loads `ipmi_devintf`, and drives `ipmitool lan set` to apply the static IP/netmask/gateway from mPCC (includes CIDR→netmask and MAC→IPv6 link-local helpers). Git history shows iteration on filtering the mPCC response to the exact requested hostname.
-- **`register_IPv6_ll.py`** (`MProvScript`, requires `mprov-jobserver>=0.0.34`) — enumerates the node's NICs, matches them by MAC against mPCC `networkinterfaces`, and registers each interface's IPv6 link-local address back with the mPCC. This is how the controller finds nodes on the provisioning fabric before DNS exists.
+- **`register_IPv6_ll.py`** (`MProvScript`, requires `mprov-jobserver>=0.0.34`) — enumerates the node's NICs, matches them by MAC against mPCC `networkinterfaces`, and registers each interface's IPv6 link-local address back with the mPCC via a PATCH that sends **only** the `ipv6ll` field, so nothing else on the interface record is overwritten with previously-read values. This is how the controller finds nodes on the provisioning fabric before DNS exists.
 - **`localTempDisk.py`** — standalone stateless disk formatter (predates the `MProvScript` base; loads `/etc/mprov/jobserver.yaml` itself). Fetches the node's disklayout from the mPCC, then builds partition tables (`parted`), filesystems, and `/etc/fstab` entries for local scratch/temp disks.
 
 ## Slurm and GPU configuration
 
-- **`slurm_enable_gpus.sh`** — reads `config_params.gpus` (default `1`) and writes `SLURM=" --conf Gres=gpu:$gpus"` into `/etc/sysconfig/slurmd` (replace-if-present, idempotent), then restarts `slurmd`. The variable is consumed by the `EnvironmentFile` line of the slurmd unit created in [create_slurm_client_service.sh](image-generation.md#slurm-and-munge-client-services).
+- **`slurm_enable_gpus.sh`** — reads `config_params.gpus` (default `1` when unset/null) and writes `SLURM=" --conf Gres=gpu:$gpus"` into `/etc/sysconfig/slurmd` (replace-if-present, idempotent), then restarts `slurmd`. The variable is consumed via the slurmd unit's `EnvironmentFile` hook by whatever Slurm client setup the cluster uses.
 - **`ansible-playbooks/nvidia-fm-install.yaml`** — example Ansible playbook run through [run_ansible.sh](image-generation.md#ansible-runner): installs `@nvidia-driver:latest-dkms/fm` and `cuda-toolkit`, enables/starts `nvidia-fabricmanager` (errors ignored, so it is safe on non-NVSwitch nodes).
 - **`add-cuda-to-path.sh`** — writes `/etc/profile.d/zz-cuda.sh` exporting `CUDA_HOME`, `PATH`, and `LD_LIBRARY_PATH` for `/usr/local/cuda`.
 
