@@ -3,9 +3,17 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      # Agent instructions only; they can't affect the tests.
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
   pull_request:
     branches:
       - master
+    paths-ignore:
+      # Agent instructions only; they can't affect the tests.
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
 jobs:
   pytest:
     runs-on: ubuntu-latest
