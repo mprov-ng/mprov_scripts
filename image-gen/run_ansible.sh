@@ -47,7 +47,7 @@ mkdir -p collections/
 
 
 # jq magic!
-for collection in `cat /tmp/mprov/entity.json | jq ".systemgroups[].ansiblecollections,.ansiblecollections[],.osdistro.ansiblecollections" | jq -s 'flatten(1)' | jq --arg m "$runMode" 'map(select(.scriptType.slug // "" | startswith($m)))' | jq -r '.[].collectionurl'`
+for collection in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansiblecollections, .ansiblecollections, .osdistro.ansiblecollections] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].collectionurl'`
 do
   if [ "$collection" != "null" ]
   then
@@ -65,7 +65,7 @@ mkdir -p roles/
 
 
 # jq magic!
-for role in `cat /tmp/mprov/entity.json | jq ".systemgroups[].ansibleroles,.ansibleroles[],.osdistro.ansibleroles" | jq -s 'flatten(1)' | jq --arg m "$runMode" 'map(select(.scriptType.slug // "" | startswith($m)))' | jq -r '.[].roleurl'`
+for role in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansibleroles, .ansibleroles, .osdistro.ansibleroles] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].roleurl'`
 do
   if [ "$role" != "null" ]
   then
@@ -98,7 +98,7 @@ cd /tmp/mprov/ansible
 mkdir -p playbooks/
 
 # jq magic!
-for playbook in `cat /tmp/mprov/entity.json | jq ".systemgroups[].ansibleplaybooks,.ansibleplaybooks[],.osdistro.ansibleplaybooks" | jq -s 'flatten(1)' | jq --arg m "$runMode" 'map(select(.scriptType.slug // "" | startswith($m)))' | jq -r '.[].filename'`
+for playbook in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansibleplaybooks, .ansibleplaybooks, .osdistro.ansibleplaybooks] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].filename'`
 do
   if [ "$playbook" != "null" ]
   then
