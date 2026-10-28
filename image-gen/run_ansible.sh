@@ -42,12 +42,36 @@ cat /tmp/mprov/entity.json | jq .config_params  > variables.json
 # create an inventory of just localhost
 echo "localhost" > inventory
 
+# ansible_list <list> <key>: the <key> (URL or file) of each entry of one
+# ansible list (ansiblecollections, ansibleroles or ansibleplaybooks) to run
+# in this run mode, in order.  The mPCC merges the lists from the distro,
+# system groups, image and system and serves them as slugs in `config`
+# (mprov_control_center#269); each slug is looked up in entity.json for its
+# URL and type.  An mPCC from before #269 doesn't serve them, so they're
+# collected from the entity's layers instead.
+ansible_list() {
+  jq -r --arg m "$runMode" --arg list "$1" --arg key "$2" '
+    (INDEX(.. | objects | select(has($list)) | .[$list] | arrays | .[] | objects; .slug)) as $by
+    | (if (.config[$list] | type) == "array"
+       then [.config[$list][] | $by[.] // {missing: .}]
+       else [.systemgroups[]?[$list], .[$list], .osdistro[$list]] | map(. // []) | flatten(1) end)
+    | map(select(.missing or (.scriptType.slug // "" | startswith($m))))
+    | .[] | if .missing then "missing \(.missing)" else .[$key] end' /tmp/mprov/entity.json |
+  while read -r entry
+  do
+    case "$entry" in
+      "missing "*) echo "WARNING: $1 ${entry#missing } is in the mPCC's config but not in entity.json, skipped." >&2 ;;
+      *) echo "$entry" ;;
+    esac
+  done
+}
+
 # run the collections.
 mkdir -p collections/
 
 
 # jq magic!
-for collection in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansiblecollections, .ansiblecollections, .osdistro.ansiblecollections] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].collectionurl'`
+for collection in `ansible_list ansiblecollections collectionurl`
 do
   if [ "$collection" != "null" ]
   then
@@ -65,7 +89,7 @@ mkdir -p roles/
 
 
 # jq magic!
-for role in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansibleroles, .ansibleroles, .osdistro.ansibleroles] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].roleurl'`
+for role in `ansible_list ansibleroles roleurl`
 do
   if [ "$role" != "null" ]
   then
@@ -98,16 +122,22 @@ cd /tmp/mprov/ansible
 mkdir -p playbooks/
 
 # jq magic!
-for playbook in `cat /tmp/mprov/entity.json | jq -r --arg m "$runMode" '[.systemgroups[]?.ansibleplaybooks, .ansibleplaybooks, .osdistro.ansibleplaybooks] | map(. // []) | flatten(1) | map(select(.scriptType.slug // "" | startswith($m))) | .[].filename'`
+playbooks=()
+for playbook in `ansible_list ansibleplaybooks filename`
 do
   if [ "$playbook" != "null" ]
   then
     wget -P playbooks/ -N $playbook
+    # only the ones that downloaded
+    if [ -e "playbooks/$(basename $playbook)" ]
+    then
+      playbooks+=("$(basename $playbook)")
+    fi
   fi
 done
 
-# run the playbooks.
-for i in `ls playbooks/`
+# run the playbooks, in the order they're listed.
+for i in "${playbooks[@]}"
 do  
   ansible-playbook -i inventory -c local -e "@variables.json" playbooks/$i 
 done
