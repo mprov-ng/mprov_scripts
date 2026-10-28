@@ -1,14 +1,18 @@
 """run_ansible.sh's jq run-mode filters (#28).
 
 The script selects the collections, roles and playbooks whose scriptType slug
-starts with the run mode and feeds them to the ansible loops.  The mPCC keeps
-these lists on the distro only (mprov_control_center osmanagement/models.py:61-63):
-a real entity.json has no ansible keys on the entity or its system groups, so
-the collection stage must tolerate missing keys at every level.  These cases
-run the script with the ansible commands stubbed and require each loop to fire
-exactly for the matching entries, with no jq errors on stderr.  A second case
-keeps lists at every level, so the script still copes if #269 (config
-inheritance) adds them to groups or systems later.
+starts with the run mode and feeds them to the ansible loops.  The mPCC serves
+these lists as nested objects on the entity, each system group and the distro
+(systems/models.py: System, SystemGroup, SystemImage; osmanagement/models.py:
+OSDistro); post-boot also on the system image and its groups.  The collection
+stage must tolerate missing keys at every level.  These cases run the script
+with the ansible commands stubbed and require each loop to fire exactly for the
+matching entries, with no jq errors on stderr.  One case has lists only under
+osdistro; the other has them at every level — the realistic shape per live
+mPCC replies.  Config inheritance (mprov-ng/mprov_control_center#269) has
+landed as merged ``config`` (mcc#370, #376; jobserver#213); dedupe and
+ordering gaps remain as a follow-up (part 5 of #269) and are out of scope
+here.
 """
 import json
 import shlex
@@ -20,8 +24,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 IMAGE = "mprov-scripts-test"
 
-# The shape the mPCC actually sends: ansible lists only under osdistro, no
-# ansible keys on the entity or its system groups.
+# Minimal shape: ansible lists only under osdistro (other levels lack the keys).
 ENTITY = {
   "mprovURL": "http://mpcc.example/",
   "apikey": "k",
@@ -43,8 +46,10 @@ ENTITY = {
   },
 }
 
-# Future-proofing for jobserver config inheritance (mprov_jobserver #269): the
-# same lists may one day also sit on the entity and its system groups.
+# Realistic shape per live mPCC replies: ansible lists at every level (entity,
+# groups, distro).  Config inheritance (mprov-ng/mprov_control_center#269) has
+# landed as merged ``config`` (mcc#370, #376; jobserver#213); dedupe and
+# ordering are a follow-up (part 5 of #269).
 ENTITY_ALL_LEVELS = {
   "mprovURL": "http://mpcc.example/",
   "apikey": "k",
@@ -124,9 +129,8 @@ def run(entity):
 
 
 def test_distro_only_entity_reaches_the_ansible_loops():
-  # The real mPCC shape: osdistro has the lists, the entity and its groups
-  # lack the ansible keys entirely.  The stage must still emit the distro's
-  # entries.
+  # Minimal shape: osdistro has the lists, the entity and its groups lack the
+  # ansible keys entirely.  The stage must still emit the distro's entries.
   code, err, logs = run(ENTITY)
   assert err == ""  # no jq errors
   assert code == 0
@@ -145,8 +149,8 @@ def test_distro_only_entity_reaches_the_ansible_loops():
 
 
 def test_lists_at_every_level_all_reach_the_ansible_loops():
-  # Future #269 config inheritance: entries at the group, entity and distro
-  # levels all get collected (groups first, then entity, then distro).
+  # Realistic shape: entries at the group, entity and distro levels all get
+  # collected (groups first, then entity, then distro).
   code, err, logs = run(ENTITY_ALL_LEVELS)
   assert err == ""
   assert code == 0
