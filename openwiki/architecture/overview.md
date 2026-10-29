@@ -34,6 +34,7 @@ When the jobserver runs a script, it stages the invocation in `/tmp/mprov/` with
 | `mprovURL` | nearly every script, NFS mounts | Base URL of the mPCC API; the host part is also the default NFS server for `/export/data` |
 | `apikey` | jobserver configs, Python scripts | API credential for the mPCC |
 | `config_params` | extra_packages, set_root_pw, setup_ssh, slurm_enable_gpus, setup_data_share_mount | Free-form per-entity JSON: `extra_packages`, `rootpw`, `rootsshkey`, `gpus`, `mprovDataShareHost`, Ansible variables |
+| `config` | run_ansible.sh | Merged Ansible collection/role/playbook slugs served by mPCCs with config inheritance (mprov-ng/mprov_control_center#269); `run_ansible.sh` falls back to the per-entity ansible lists when absent |
 | `slug` | run_ansible.sh, install_mprov_script-runner.sh | Image slug when running in image-gen mode; `nads` selects the NADS module |
 
 Scripts treat a missing or `null` config param as unset — via `jq` guards like `// empty` and `// []` — and fall back to their documented default (e.g. `slurm_enable_gpus.sh` defaults `gpus=1`; `set_root_pw.sh` leaves the distro password alone), never the literal string `null`. The pytest suite in `tests/` (`tests/test_config_params.py`, run in a Rocky 9 container from `tests/Dockerfile` with `dnf`/`systemctl` stubs, on push/PR via `.github/workflows/tests.yml`) enforces this for the param-reading scripts. `config_params` doubles as the Ansible variable file: `run_ansible.sh` extracts it into `variables.json` and passes `-e @variables.json`.

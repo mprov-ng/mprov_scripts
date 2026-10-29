@@ -28,10 +28,10 @@ Two scripts install the pip package `mprov_jobserver` in different roles, each w
 
 - Installs `ansible` from EPEL, detects run mode from `entity.json` (`slug` present → image-gen, else post-boot).
 - Extracts `config_params` from `entity.json` into `variables.json` as the extra-vars file.
-- Collects Ansible **collections**, **roles**, and **playbooks** from three mPCC levels via `jq` — systemgroups, the entity itself, and the OS distro — filtered to entries whose `scriptType.slug` starts with the run mode.
-- Installs collections/roles with `ansible-galaxy`, runs each role against localhost through a generated `/tmp/role.yaml` wrapper, then `wget`s and runs each playbook locally. Cleans up `/tmp/mprov/ansible/` afterward.
+- Selects the Ansible **collections**, **roles**, and **playbooks** to run via a single `ansible_list` `jq` helper. When the mPCC serves merged lists — newer mPCCs (mprov-ng/mprov_control_center#269) put the inherited slugs (distro → system groups → image → system, deduped, in inheritance order) into `config.ansiblecollections` / `config.ansibleroles` / `config.ansibleplaybooks` — the script walks those slugs and looks each one up in `entity.json` for its URL and type; a slug present in `config` but absent from `entity.json` is warned about on stderr and skipped. Against an older mPCC (no `config` lists) it falls back to collecting the lists from the entity's layers — systemgroups, the entity itself, and the OS distro. Both paths then filter to entries whose `scriptType.slug` starts with the run mode, and tolerate the list keys being missing at any level.
+- Installs collections/roles with `ansible-galaxy`, runs each role against localhost through a generated `/tmp/role.yaml` wrapper, then `wget`s and runs each playbook locally **in the order the list provides** (only playbooks that actually downloaded). Cleans up `/tmp/mprov/ansible/` afterward.
 
-Note the roles are executed in download order with implicit gathering; playbook URLs are fetched with `wget -N`, so mPCC-hosted playbook URLs must be reachable from the node/image build.
+Note the roles are executed in list order with implicit gathering; playbook URLs are fetched with `wget -N`, so mPCC-hosted playbook URLs must be reachable from the node/image build. `tests/test_run_ansible.py` exercises both selection paths (merged `config` slugs and layer fallback) with the ansible commands stubbed.
 
 ## Identity and package scripts
 
