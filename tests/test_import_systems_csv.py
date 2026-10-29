@@ -136,3 +136,24 @@ def test_a_bad_row_stops_the_whole_import(row, message):
   assert f"line 3: {message}" in err
   assert "nothing was imported" in err
   assert mash is None and after == ""
+
+
+# #39: BMC and IB addresses swap the management prefix, or the row is refused.
+
+def test_bmc_and_ib_addresses_swap_the_management_prefix():
+  code, err, mash, _, _ = run(GOOD)
+  assert code == 0, err
+  bmc = [l for l in creates(mash) if l.startswith("create systems.models.SystemBMC ")][0]
+  assert " ipaddress=172.29.1.11 " in bmc
+  assert nic(mash, "ib0")["ipaddress"] == "172.21.1.11"
+
+
+@pytest.mark.parametrize("ip", [
+  "10.9.9.9",      # another network: the BMC and IB got the node's own address
+  "172.200.1.5",   # the old sed's '.' matched '0': BMC 172.29..1.5
+])
+def test_an_address_off_the_management_network_stops_the_import(ip):
+  code, err, mash, _, _ = run(GOOD + f"n03,aa:bb:cc:dd:ee:03,{ip}\n")
+  assert code == 1
+  assert f"line 3: {ip} for n03 isn't on the management network 172.20.x.x" in err
+  assert mash is None

@@ -126,9 +126,16 @@ do
     errors=$((errors+1))
     continue
   fi
-  # let's get the bmc ip
-  bmcIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$bmcNet/g"`
-  ibIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$ibNet/g"`
+  # the BMC and IB addresses swap the management prefix for theirs; an
+  # address outside the management network has no BMC/IB address (#39).
+  if [[ "$m_ipaddr" != "$mgmtNet"* ]]
+  then
+    echo "Error: line $lineno: $m_ipaddr for $m_hostname isn't on the management network ${mgmtNet}x.x, so its BMC and IB addresses can't be worked out" >&2
+    errors=$((errors+1))
+    continue
+  fi
+  bmcIp=${bmcNet}${m_ipaddr#"$mgmtNet"}
+  ibIp=${ibNet}${m_ipaddr#"$mgmtNet"}
 
   cat << EOF >> "$mashInput"
 
