@@ -14,6 +14,7 @@ gets.
 import builtins
 import importlib.util
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -69,6 +70,8 @@ def formatter(monkeypatch, tmp_path):
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
   # reads this host's mounts and sysfs; tested in test_local_temp_disk_in_use.py.
   f._checkDisks = lambda: None
+  # waits for /dev nodes this host doesn't have; tested below.
+  f._waitForPartition = lambda device: None
   f.sh = fake_sh
   f.fstab = fstab
   f.fstabfile = str(fstab)
@@ -93,6 +96,36 @@ def raid(diskname, mount, *members):
 
 def mkfs_devices(f):
   return [c.split()[-1] for c in f.sh.ran("mkfs")]
+
+
+@pytest.mark.parametrize("diskname, device", [
+  ("/dev/sdb", "/dev/sdb1"),
+  ("/dev/vda", "/dev/vda1"),
+  ("/dev/mmcblk0", "/dev/mmcblk0p1"),
+  ("/dev/loop0", "/dev/loop0p1"),
+  ("/dev/md127", "/dev/md127p1"),
+])
+def test_partition_names_follow_the_kernel(formatter, diskname, device):
+  # only /dev/nvme* got the 'p' before the number (#64).
+  formatter.disklayout = [disk("d", diskname, part(1, "/scratch", "xfs", fill=True))]
+  formatter.buildDisks()
+  assert mkfs_devices(formatter) == [device]
+
+
+def test_disk_named_by_a_link_uses_the_kernel_name(formatter, tmp_path):
+  # /dev/disk/by-id/<id> partitions were named '<id>1'; the kernel's name for
+  # partition 1 of the disk the link points at is sdq1 (#64).
+  link = tmp_path / "scsi-0QEMU_QEMU_HARDDISK_drive-scsi0"
+  link.symlink_to("/dev/sdq")
+  formatter.disklayout = [
+    disk("by-id", str(link), part(1, "raid", "raid"), part(2, "/scratch", "xfs", fill=True)),
+    disk("d-sdr", "/dev/sdr", part(1, "raid", "raid")),
+    raid("/dev/md0", "/data", ("by-id", 1), ("d-sdr", 1)),
+  ]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+  assert mkfs_devices(formatter) == ["/dev/sdq2", "/dev/md0"]
+  assert formatter.sh.ran("mdadm")[-1].endswith("--raid-devices=2 /dev/sdq1 /dev/sdr1")
 
 
 def test_nvme_partitions_get_the_p_separator(formatter):
@@ -270,3 +303,25 @@ def test_fstab_is_written_when_the_node_had_none(formatter):
   lines = formatter.fstab.read_text().splitlines()
   assert len(lines) == 3 and lines[1].split()[1] == "/scratch"
   assert not Path(f"{formatter.fstab}.mprov-bak").exists()
+
+
+# _waitForPartition(): a new partition's device can be missing for a moment
+# after the table is written (#64).
+
+def wait(formatter, device, timeout):
+  return type(formatter)._waitForPartition(formatter, str(device), timeout=timeout)
+
+
+def test_wait_settles_udev_and_returns_once_the_device_is_there(formatter, tmp_path):
+  device = tmp_path / "sdb1"
+  threading.Timer(0.3, device.touch).start()
+  wait(formatter, device, timeout=5)
+  assert device.exists()
+  assert formatter.sh.ran("udevadm") == ["udevadm settle --timeout=5"]
+
+
+def test_wait_gives_up_on_a_device_that_never_appears(formatter, tmp_path, capsys):
+  with pytest.raises(SystemExit) as exit:
+    wait(formatter, tmp_path / "sdb1", timeout=0.3)
+  assert exit.value.code == 1
+  assert "didn't appear within 0.3s" in capsys.readouterr().err
