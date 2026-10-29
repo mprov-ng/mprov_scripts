@@ -32,7 +32,8 @@ class FakeSh:
     self.mdadm_calls.append(args)
 
   def mount(self, args):
-    path = args[0] if isinstance(args, (list, tuple)) else args
+    # 'mount UUID=... <dir>' since #33: the mount point is the last argument.
+    path = args[-1] if isinstance(args, (list, tuple)) else args
     self.mounts.append(path)
     if path not in self.mountable:
       raise RuntimeError(f"mount: {path}: mount point does not exist.")
@@ -112,8 +113,10 @@ def test_build_disks_mounts_partition_not_disk(monkeypatch, tmp_path):
       path = str(fstab)
     return real_open(path, *args, **kwargs)
   monkeypatch.setattr(builtins, "open", redirect_open)
+  formatter.fstabfile = str(fstab)
 
   formatter.buildDisks()
+  formatter.writeFstab()
 
   # The mount point written to fstab is the one that must be mounted.
   assert f"UUID={partuuid}\t{part_mount}" in fstab.read_text()

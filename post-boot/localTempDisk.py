@@ -3,7 +3,7 @@
 import json
 import socket
 import uuid
-import yaml, os, sys, glob, time
+import yaml, os, sys, glob, time, shutil
 import parted
 import traceback
 import requests
@@ -30,6 +30,11 @@ class mProvStatelessDiskFormatter():
   # for runs by hand: a node has the script runner's config, a secondary
   # jobserver has its own.
   configfiles = ["/etc/mprov/script-runner.yaml", "/etc/mprov/jobserver.yaml"]
+  fstabfile = "/etc/fstab"
+  # our entries go between these, so a rerun replaces them (swap has no
+  # mount point to match an old entry by).
+  FSTAB_BEGIN = "# BEGIN mprov localTempDisk.py"
+  FSTAB_END = "# END mprov localTempDisk.py"
 
   def __init__(self, **kwargs):
     print("mProv Local Disk Formatter Starting.")
@@ -128,10 +133,8 @@ class mProvStatelessDiskFormatter():
     print("Building partitions and filesystems...")
     # stop all arrays
     sh.mdadm(['--stop', '--scan'])
-    try:
-      os.unlink("/etc/fstab")
-    except:
-      pass
+    # /etc/fstab is left alone until everything is built (#33).
+    self.fstabEntries = []
     self.partDevices = {}
 
     for pdisk in self.disklayout:
@@ -159,11 +162,7 @@ class mProvStatelessDiskFormatter():
         self._setPartDevice(pdisk, part, partnum)
         if part['filesystem'] != 'raid' and part['mount'] != 'raid':
           partuuid = self._makeFS(part, pdisk)
-
-
-          # update /etc/fstab
-          with open("/etc/fstab", "a") as fstab:
-            fstab.write(f"UUID={partuuid}\t{part['mount']}\t\t{part['filesystem']}\tdefaults\t0 0\n")
+          self._addToFstab(partuuid, part['mount'], part['filesystem'])
           self._activate(part, partuuid)
 
         partnum+=1
@@ -174,9 +173,7 @@ class mProvStatelessDiskFormatter():
 
         if fillpart['filesystem'] != 'raid' and fillpart['mount'] != 'raid':
           partuuid = self._makeFS(fillpart, pdisk)
-          # update /etc/fstab
-          with open("/etc/fstab", "a") as fstab:
-            fstab.write(f"UUID={partuuid}\t{fillpart['mount']}\t\t{fillpart['filesystem']}\tdefaults\t0 0\n")
+          self._addToFstab(partuuid, fillpart['mount'], fillpart['filesystem'])
           self._activate(fillpart, partuuid)
     
   def buildRAIDs(self):
@@ -204,12 +201,44 @@ class mProvStatelessDiskFormatter():
         'partnum':'',
       }
       partuuid = self._makeFS(part, pdisk)
-      # update /etc/fstab
-      with open("/etc/fstab", "a") as fstab:
-        fstab.write(f"UUID={partuuid}\t{pdisk['mount']}\t\t{pdisk['filesystem']}\tdefaults\t0 0\n")
-      
-      sh.mount([f"{pdisk['mount']}"])
- 
+      self._addToFstab(partuuid, pdisk['mount'], pdisk['filesystem'])
+      self._activate({'mount': pdisk['mount']}, partuuid)
+
+  def writeFstab(self):
+    """
+    Write /etc/fstab once every disk, filesystem and RAID is built (#33): the
+    existing entries, minus any for a mount point we just built and our block
+    from an earlier run, then our block.  The old file is kept as
+    /etc/fstab.mprov-bak, and the new one is swapped in with a rename, so a
+    failed run leaves /etc/fstab as it was.
+    """
+    newmounts = {line.split()[1] for line in self.fstabEntries} - {"none"}
+    kept = []
+    inblock = False
+    try:
+      with open(self.fstabfile, "r") as fstab:
+        for line in fstab:
+          if line.strip() == self.FSTAB_BEGIN:
+            inblock = True
+          elif line.strip() == self.FSTAB_END:
+            inblock = False
+          else:
+            fields = line.split()
+            replaced = len(fields) > 1 and not fields[0].startswith("#") and fields[1] in newmounts
+            if not inblock and not replaced:
+              kept.append(line if line.endswith("\n") else line + "\n")
+      shutil.copy2(self.fstabfile, self.fstabfile + ".mprov-bak")
+    except FileNotFoundError:
+      pass
+
+    tmpfile = self.fstabfile + ".mprov-new"
+    with open(tmpfile, "w") as fstab:
+      fstab.writelines(kept + [self.FSTAB_BEGIN + "\n"] + self.fstabEntries + [self.FSTAB_END + "\n"])
+      fstab.flush()
+      os.fsync(fstab.fileno())
+    os.chmod(tmpfile, 0o644)
+    os.replace(tmpfile, self.fstabfile)
+
   def to_mebibytes(self, value):
     return value / (2 ** 20)
 
@@ -271,13 +300,18 @@ class mProvStatelessDiskFormatter():
     return self.from_mebibytes(part['size'], sectorsize)
 
 
+  def _addToFstab(self, partuuid, mount, filesystem):
+    """ Note an fstab entry for writeFstab(). """
+    self.fstabEntries.append(f"UUID={partuuid}\t{mount}\t\t{filesystem}\tdefaults\t0 0\n")
+
   def _activate(self, part, partuuid):
     """ Put a partition _makeFS() just built to use: swap on, or mount it. """
     if part['mount'] == "none":
       # swap: there's nothing to mount ('mount none' fails), turn it on (#54).
       sh.swapon([f"UUID={partuuid}"])
     else:
-      sh.mount([f"{part['mount']}"])
+      # by UUID: /etc/fstab isn't written until everything is built (#33).
+      sh.mount([f"UUID={partuuid}", f"{part['mount']}"])
 
   def _setPartDevice(self, pdisk, part, partnum):
     """ Note the device a layout partition got, for _makeFS() and buildRAIDs(). """
@@ -319,7 +353,7 @@ def main():
   dFormatter = mProvStatelessDiskFormatter()
   dFormatter.buildDisks()
   dFormatter.buildRAIDs()
-  pass
+  dFormatter.writeFstab()
 
 def __main__():
     main()

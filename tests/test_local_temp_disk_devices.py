@@ -69,6 +69,7 @@ def formatter(monkeypatch, tmp_path):
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
   f.sh = fake_sh
   f.fstab = fstab
+  f.fstabfile = str(fstab)
   return f
 
 
@@ -165,6 +166,7 @@ def test_swap_is_turned_on_not_mounted(formatter, swap_is_fill):
     part(1, "swap", "linux-swap", fill=swap_is_fill), part(2, "/scratch", "xfs", fill=not swap_is_fill))]
   formatter.buildDisks()
   formatter.buildRAIDs()
+  formatter.writeFstab()
 
   swap_dev = "/dev/sdb2" if swap_is_fill else "/dev/sdb1"
   mkswap, = formatter.sh.ran("mkswap")
@@ -172,10 +174,11 @@ def test_swap_is_turned_on_not_mounted(formatter, swap_is_fill):
   swap_uuid = mkswap.split()[3]
   assert formatter.sh.ran("swapon") == [f"swapon UUID={swap_uuid}"]
   # the other partition is still built and mounted, and 'none' never is.
-  assert formatter.sh.ran("mount") == ["mount /scratch"]
+  mount, = formatter.sh.ran("mount")
+  assert mount.startswith("mount UUID=") and mount.endswith(" /scratch")
   fstab = formatter.fstab.read_text().splitlines()
   assert f"UUID={swap_uuid}\tnone\t\tswap\tdefaults\t0 0" in fstab
-  assert len(fstab) == 2
+  assert len(fstab) == 4  # our two entries between the BEGIN/END markers
 
 
 def test_raid_member_on_an_unattached_layout_stops_the_script(formatter, capsys):
@@ -200,3 +203,68 @@ def test_later_raid_with_a_missing_member_doesnt_reuse_the_previous_disk(formatt
     formatter.buildRAIDs()
   creates = [c for c in formatter.sh.ran("mdadm") if "--create" in c]
   assert creates == ["mdadm --create /dev/md0 -R --force --level=raid1 --raid-devices=2 /dev/sdb1 /dev/sdc1"]
+
+
+# /etc/fstab (#33): left alone until everything is built, then rewritten in one go.
+
+IMAGE_FSTAB = "# from the image\ntmpfs\t/\ttmpfs\tdefaults\t0 0\nnfs01:/home\t/home\tnfs\tdefaults\t0 0\n"
+
+
+def test_fstab_keeps_the_images_entries_and_a_backup(formatter):
+  formatter.fstab.write_text(IMAGE_FSTAB)
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb", part(1, "/scratch", "xfs", fill=True))]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+  formatter.writeFstab()
+
+  lines = formatter.fstab.read_text().splitlines()
+  assert lines[:3] == IMAGE_FSTAB.splitlines()
+  assert lines[3] == formatter.FSTAB_BEGIN and lines[-1] == formatter.FSTAB_END
+  assert lines[4].startswith("UUID=") and lines[4].split()[1:3] == ["/scratch", "xfs"]
+  assert Path(f"{formatter.fstab}.mprov-bak").read_text() == IMAGE_FSTAB
+  assert not Path(f"{formatter.fstab}.mprov-new").exists()
+
+
+def test_a_failure_part_way_leaves_fstab_alone(formatter):
+  formatter.fstab.write_text(IMAGE_FSTAB)
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb", part(1, "/a", "xfs"), part(2, "/b", "xfs", fill=True))]
+  made = []
+  def mkfs(*args):
+    made.append(args[-1])
+    if len(made) == 2:
+      raise RuntimeError("mkfs failed")
+  formatter.sh.mkfs = mkfs
+  with pytest.raises(RuntimeError):
+    formatter.buildDisks()
+  # main() never reaches writeFstab(); the first filesystem is built and
+  # mounted, but the file is exactly what the image shipped.
+  assert made == ["/dev/sdb1", "/dev/sdb2"]
+  assert formatter.fstab.read_text() == IMAGE_FSTAB
+
+
+def test_a_rerun_replaces_its_own_entries_and_same_mount_points(formatter):
+  formatter._createPartition = create_partition_naming_swap
+  formatter.fstab.write_text(IMAGE_FSTAB + "/dev/sdc1\t/scratch\txfs\tdefaults\t0 0\n"
+    f"{formatter.FSTAB_BEGIN}\nUUID=old-swap\tnone\t\tswap\tdefaults\t0 0\n{formatter.FSTAB_END}\n")
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb",
+    part(1, "swap", "linux-swap"), part(2, "/scratch", "xfs", fill=True))]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+  formatter.writeFstab()
+
+  text = formatter.fstab.read_text()
+  assert "old-swap" not in text and "/dev/sdc1" not in text
+  assert text.count(formatter.FSTAB_BEGIN) == 1
+  lines = text.splitlines()
+  assert lines[:3] == IMAGE_FSTAB.splitlines()
+  assert [l.split()[1] for l in lines[4:-1]] == ["none", "/scratch"]
+
+
+def test_fstab_is_written_when_the_node_had_none(formatter):
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb", part(1, "/scratch", "xfs", fill=True))]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+  formatter.writeFstab()
+  lines = formatter.fstab.read_text().splitlines()
+  assert len(lines) == 3 and lines[1].split()[1] == "/scratch"
+  assert not Path(f"{formatter.fstab}.mprov-bak").exists()
