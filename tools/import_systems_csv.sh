@@ -63,25 +63,81 @@ do
   esac
 done
 
-echo -n "" > /tmp/mash_node_import
+# the mash input carries the BMC credentials: keep it private (mktemp makes
+# it 0600) and remove it however we leave (#40).
+mashInput=$(mktemp /tmp/mash_node_import.XXXXXX) || exit 1
+trap 'rm -f "$mashInput"' EXIT
 
-for entry in `cat $filename`
+trim() {
+  local s=$1
+  s=${s#"${s%%[![:space:]]*}"}
+  printf %s "${s%"${s##*[![:space:]]}"}"
+}
+
+# one record per line; a bad row stops the import before anything is sent
+# to the mPCC (#26).
+errors=0
+lineno=0
+while IFS= read -r line || [ -n "$line" ]
 do
-  IFS=',' read -ra DATA <<< "$entry"
+  lineno=$((lineno+1))
+  # spreadsheets write CRLF line endings.
+  line=${line//$'\r'/}
+  # skip blank lines and comments.
+  [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+  IFS=',' read -ra DATA <<< "$line"
+  for i in "${!DATA[@]}"
+  do
+    DATA[$i]=$(trim "${DATA[$i]}")
+  done
+  # a header row: the format at the top of this script.
+  if [ $lineno -eq 1 ] && [ "${DATA[1],,}" == "mac" ]
+  then
+    continue
+  fi
+  if [ ${#DATA[@]} -lt 2 ] || [ ${#DATA[@]} -gt 3 ]
+  then
+    echo "Error: line $lineno: expected nodename,mac[,ipaddress]: $line" >&2
+    errors=$((errors+1))
+    continue
+  fi
   m_hostname=${DATA[0]}
   m_macaddr=${DATA[1]}
   m_ipaddr=${DATA[2]}
-  if [ "${DATA[2]}" == "" ]
+  if [ "$m_ipaddr" == "" ]
   then
-    #echo "Resolving host ${m_hostname}"
-    m_ipaddr=`host ${DATA[0]} | awk '{print $4}'`
-    
+    m_ipaddr=`host "$m_hostname" | awk '/ has address /{print $4; exit}'`
   fi
-  # let's get the bmc ip
-  bmcIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$bmcNet/g"`
-  ibIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$ibNet/g"`
+  if ! [[ "$m_hostname" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]
+  then
+    echo "Error: line $lineno: bad node name '$m_hostname'" >&2
+    errors=$((errors+1))
+    continue
+  fi
+  if ! [[ "$m_macaddr" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]
+  then
+    echo "Error: line $lineno: bad MAC address '$m_macaddr' for $m_hostname" >&2
+    errors=$((errors+1))
+    continue
+  fi
+  if ! [[ "$m_ipaddr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+  then
+    echo "Error: line $lineno: no IPv4 address for $m_hostname (got '$m_ipaddr')" >&2
+    errors=$((errors+1))
+    continue
+  fi
+  # the BMC and IB addresses swap the management prefix for theirs; an
+  # address outside the management network has no BMC/IB address (#39).
+  if [[ "$m_ipaddr" != "$mgmtNet"* ]]
+  then
+    echo "Error: line $lineno: $m_ipaddr for $m_hostname isn't on the management network ${mgmtNet}x.x, so its BMC and IB addresses can't be worked out" >&2
+    errors=$((errors+1))
+    continue
+  fi
+  bmcIp=${bmcNet}${m_ipaddr#"$mgmtNet"}
+  ibIp=${ibNet}${m_ipaddr#"$mgmtNet"}
 
-  cat << EOF >> /tmp/mash_node_import
+  cat << EOF >> "$mashInput"
 
 print Creating System ${m_hostname}
 create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 systemimage=${imageName} stateful=1 disks=['compute-state-lite']
@@ -98,7 +154,13 @@ create systems.models.NetworkInterface name=ib0 hostname=${m_hostname} ipaddress
 
 EOF
 
-done
+done < "$filename"
+
+if [ $errors -gt 0 ]
+then
+  echo "Error: $errors bad row(s) in $filename; nothing was imported." >&2
+  exit 1
+fi
 
 # Engage...
-echo "connect" | cat - /tmp/mash_node_import | mash
+echo "connect" | cat - "$mashInput" | mash
