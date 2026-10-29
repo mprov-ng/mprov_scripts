@@ -164,7 +164,7 @@ class mProvStatelessDiskFormatter():
           # update /etc/fstab
           with open("/etc/fstab", "a") as fstab:
             fstab.write(f"UUID={partuuid}\t{part['mount']}\t\t{part['filesystem']}\tdefaults\t0 0\n")
-          sh.mount([f"{part['mount']}"])
+          self._activate(part, partuuid)
 
         partnum+=1
 
@@ -177,7 +177,7 @@ class mProvStatelessDiskFormatter():
           # update /etc/fstab
           with open("/etc/fstab", "a") as fstab:
             fstab.write(f"UUID={partuuid}\t{fillpart['mount']}\t\t{fillpart['filesystem']}\tdefaults\t0 0\n")
-          sh.mount([f"{fillpart['mount']}"])
+          self._activate(fillpart, partuuid)
     
   def buildRAIDs(self):
     print("Building software RAID devices ... ")
@@ -270,6 +270,14 @@ class mProvStatelessDiskFormatter():
     disk.commit()
     return self.from_mebibytes(part['size'], sectorsize)
 
+
+  def _activate(self, part, partuuid):
+    """ Put a partition _makeFS() just built to use: swap on, or mount it. """
+    if part['mount'] == "none":
+      # swap: there's nothing to mount ('mount none' fails), turn it on (#54).
+      sh.swapon([f"UUID={partuuid}"])
+    else:
+      sh.mount([f"{part['mount']}"])
 
   def _setPartDevice(self, pdisk, part, partnum):
     """ Note the device a layout partition got, for _makeFS() and buildRAIDs(). """
