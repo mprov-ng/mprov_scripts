@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import subprocess
+import tempfile
 from token import EXACT_TOKEN_TYPES
 import yaml, json
 import os, sys, time, socket, requests, sh
@@ -28,6 +29,43 @@ class MScript(MProvScript):
       mac_octets[0] = "%X" % (bytearray.fromhex(mac_octets[0])[0] ^ 0x2)
       return f"fe80::{mac_octets[0]}{mac_octets[1]}:{mac_octets[2]}ff:fe{mac_octets[3]}:{mac_octets[4]}{mac_octets[5]}"
 
+  def ipmitool(self, *args):
+    """ Run one ipmitool command; on failure print its error and return False. """
+    result = subprocess.run(["/usr/bin/ipmitool", *args], capture_output=True, text=True)
+    if result.returncode:
+      print(f"Error: ipmitool {' '.join(args)} failed ({result.returncode}): "
+            f"{(result.stderr or result.stdout).strip()}", file=sys.stderr)
+      return False
+    return True
+
+  def set_password(self, userid, password):
+    """
+    Set a BMC user's password without putting it on a command line, where
+    any local user can read it (#35): 'ipmitool exec' reads the command from
+    a root-only batch file.  exec's parser drops everything from a '#' on,
+    splits on spaces unless a token is quoted, turns a '~' inside quotes into
+    a space, and runs off the end of the line on a lone quote.  So the
+    password goes in double quotes and can't contain '"', '#', '~' or
+    anything but printable ASCII.
+    """
+    bad = sorted({c for c in password if c in '"#~' or not " " <= c <= "~"})
+    if bad:
+      print(f"Error: the BMC password has characters ipmitool exec can't carry: {bad}. "
+            "Change it in the mPCC.", file=sys.stderr)
+      return False
+    fd, batchfile = tempfile.mkstemp(prefix="setupBMC-")
+    try:
+      with os.fdopen(fd, "w") as batch:
+        batch.write(f'user set password {userid} "{password}"\n')
+      result = subprocess.run(["/usr/bin/ipmitool", "exec", batchfile], capture_output=True, text=True)
+    finally:
+      os.unlink(batchfile)
+    if result.returncode:
+      print(f"Error: setting the BMC password failed ({result.returncode}): "
+            f"{(result.stderr or result.stdout).strip()}", file=sys.stderr)
+      return False
+    return True
+
   def run(self):
 
       print("Attempting to get our BMC info from the MPCC...")
@@ -53,70 +91,52 @@ class MScript(MProvScript):
         bmc = {}
         # we got a bmc object, let's load it.
         try:
-          bmc = response.json()[0]
+          bmcs = response.json()
         except Exception as e:
-          print("Error: Unable to parse mPCC reply for BMC. {e}")
+          print(f"Error: Unable to parse mPCC reply for BMC. {e}", file=sys.stderr)
+          sys.exit(1)
+        if not bmcs:
+          print("This system has no BMC in the mPCC, nothing to set up.")
           return
+        bmc = bmcs[0]
         # let's execute some local commands to try to set up the bmc.
-        result = subprocess.run(["/sbin/modprobe",  "ipmi_devintf"])
+        result = subprocess.run(["/sbin/modprobe",  "ipmi_devintf"], capture_output=True, text=True)
         if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+          print(f"Error: modprobe ipmi_devintf failed: {(result.stderr or result.stdout).strip()}", file=sys.stderr)
           return
 
-        result = subprocess.run(["/usr/bin/ipmitool", "lan", "set", "1", "ipsrc", "static"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        if not self.ipmitool("lan", "set", "1", "ipsrc", "static"):
           return
-
-        result = subprocess.run(["/usr/bin/ipmitool", "lan", "set", "1", "ipaddr", f"{bmc['ipaddress']}"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        if not self.ipmitool("lan", "set", "1", "ipaddr", f"{bmc['ipaddress']}"):
           return
-
-        result = subprocess.run(["/usr/bin/ipmitool", "lan",  "set",  "1",  "netmask",  f"{self.cidr_to_netmask(bmc['network']['netmask'])} "])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        # once, and without the trailing space it used to carry (#27).
+        if not self.ipmitool("lan", "set", "1", "netmask", self.cidr_to_netmask(bmc['network']['netmask'])):
           return
+        # a network can have no gateway (#27).
+        if bmc['network'].get('gateway'):
+          if not self.ipmitool("lan", "set", "1", "defgw", "ipaddr", bmc['network']['gateway']):
+            return
 
         if bmc['vlan'] == 0 and bmc['network']['vlan'] == 0:
           bmc['vlan'] = 'off'
         elif bmc['vlan'] == 0:
           bmc['vlan'] = bmc['network']['vlan']
-        result = subprocess.run(["/usr/bin/ipmitool", "lan",  "set",  "1",  "vlan", "id",  f"{bmc['vlan']}"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        if not self.ipmitool("lan", "set", "1", "vlan", "id", f"{bmc['vlan']}"):
           return
 
-        result = subprocess.run(["/usr/bin/ipmitool", "lan",  "set",  "1",  "netmask",  f"{self.cidr_to_netmask(bmc['network']['netmask'])} "])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        if not self.ipmitool("user", "set", "name", "2", f"{bmc['username']}"):
           return
-
-        result = subprocess.run(["/usr/bin/ipmitool", "user", "set", "name", "2", f"{bmc['username']}"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
-          return
-
-        result = subprocess.run(["/usr/bin/ipmitool", "user", "set", "password", "2", f"{bmc['password']}"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
-          return
-
-        result = subprocess.run(["/usr/bin/ipmitool", "user", "enable", "2"])
-        if result.returncode:
-          print(result.stdout)
-          print(result.stderr)
+        if bmc['password']:
+          if not self.set_password(2, bmc['password']):
+            return
+        else:
+          print("Warning: no BMC password in the mPCC, leaving the BMC's password as it is.", file=sys.stderr)
+        if not self.ipmitool("user", "enable", "2"):
           return
       else:
-        print(f"Error: Unable to get bmc info, {response.status_code}: {response.text}")
+        # without a BMC record there's nothing to register the MAC against (#36).
+        print(f"Error: Unable to get bmc info, {response.status_code}: {response.text}", file=sys.stderr)
+        sys.exit(1)
 
       bmcMac = None
       for line in sh.ipmitool(['lan', 'print'], _iter=True, _ok_code=(0,1)):
