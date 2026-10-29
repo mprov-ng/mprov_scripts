@@ -67,6 +67,8 @@ def formatter(monkeypatch, tmp_path):
   # partitioning touches real devices; parted's numbering is what
   # buildDisks() tracks, so only creation is stubbed.
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
+  # reads this host's mounts and sysfs; tested in test_local_temp_disk_in_use.py.
+  f._checkDisks = lambda: None
   f.sh = fake_sh
   f.fstab = fstab
   f.fstabfile = str(fstab)

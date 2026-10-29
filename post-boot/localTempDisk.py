@@ -35,6 +35,10 @@ class mProvStatelessDiskFormatter():
   # mount point to match an old entry by).
   FSTAB_BEGIN = "# BEGIN mprov localTempDisk.py"
   FSTAB_END = "# END mprov localTempDisk.py"
+  # what _checkDisks() reads to see which devices are in use (#43).
+  procMounts = "/proc/mounts"
+  procSwaps = "/proc/swaps"
+  sysBlock = "/sys/class/block"
 
   def __init__(self, **kwargs):
     print("mProv Local Disk Formatter Starting.")
@@ -133,6 +137,8 @@ class mProvStatelessDiskFormatter():
     print("Building partitions and filesystems...")
     # stop all arrays
     sh.mdadm(['--stop', '--scan'])
+    # never repartition a disk the running system uses (#43).
+    self._checkDisks()
     # /etc/fstab is left alone until everything is built (#33).
     self.fstabEntries = []
     self.partDevices = {}
@@ -299,6 +305,58 @@ class mProvStatelessDiskFormatter():
     disk.commit()
     return self.from_mebibytes(part['size'], sectorsize)
 
+
+  def _checkDisks(self):
+    """
+    Refuse to repartition a disk the running system uses (#43): one that, or
+    a partition of which, is mounted, active swap or still held by a RAID or
+    LVM device (mdadm --stop --scan has stopped the idle arrays by now).  On a
+    stateful node that is the root disk.  Every disk is checked before any is
+    touched, and on a problem they're all printed and we exit.
+    """
+    inuse = {}
+    for table, header, reason in ((self.procMounts, False, "is mounted on {}"),
+                                  (self.procSwaps, True, "is active swap")):
+      try:
+        with open(table, "r") as entries:
+          lines = entries.readlines()[1 if header else 0:]
+      except FileNotFoundError:
+        continue
+      for line in lines:
+        fields = line.split()
+        if len(fields) > 1 and fields[0].startswith("/dev/"):
+          inuse.setdefault(self._kernelName(fields[0]), reason.format(fields[1]))
+
+    problems = []
+    for pdisk in self.disklayout:
+      if pdisk['dtype'] == 'mdrd':
+        continue
+      disk = self._kernelName(pdisk['diskname'])
+      diskdir = os.path.join(self.sysBlock, disk)
+      if not os.path.isdir(diskdir):
+        problems.append(f"{pdisk['diskname']}: no such disk")
+        continue
+      parts = sorted(name for name in os.listdir(diskdir)
+                     if os.path.isfile(os.path.join(diskdir, name, "partition")))
+      for dev in [disk] + parts:
+        if dev in inuse:
+          problems.append(f"{pdisk['diskname']}: /dev/{dev} {inuse[dev]}")
+        try:
+          holders = sorted(os.listdir(os.path.join(self.sysBlock, dev, "holders")))
+        except FileNotFoundError:
+          holders = []
+        if holders:
+          problems.append(f"{pdisk['diskname']}: /dev/{dev} is in use by {', '.join('/dev/' + h for h in holders)}")
+
+    if problems:
+      print("Error: refusing to repartition disks the running system uses:", file=sys.stderr)
+      for problem in problems:
+        print(f"  {problem}", file=sys.stderr)
+      sys.exit(1)
+
+  def _kernelName(self, path):
+    """ The kernel's name for a device path: /dev/disk/by-id/... -> sda, /dev/mapper/vg-lv -> dm-0. """
+    return os.path.basename(os.path.realpath(path))
 
   def _addToFstab(self, partuuid, mount, filesystem):
     """ Note an fstab entry for writeFstab(). """
