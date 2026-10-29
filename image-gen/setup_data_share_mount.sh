@@ -19,5 +19,15 @@ shareHost=${shareHost:-$mpccHost}
 dnf -y install nfs-utils
 
 mkdir -p /data
-# Add the NFS mount to fstab
-grep -qF '/export/data' /etc/fstab || echo "${shareHost}:/export/data    /data    nfs defaults    0 0" >> /etc/fstab
+# Add the NFS mount to fstab, unless an entry already mounts something on
+# /data.  Match the mount point field: a comment or another export that only
+# mentions /export/data doesn't count (#21).
+if awk '$1 !~ /^#/ && $2 == "/data" { found = 1 } END { exit !found }' /etc/fstab 2>/dev/null; then
+  echo "/etc/fstab already mounts /data, leaving it alone."
+else
+  # don't glue our entry onto a last line with no newline (#21).
+  if [ -s /etc/fstab ] && [ -n "$(tail -c1 /etc/fstab)" ]; then
+    echo >> /etc/fstab
+  fi
+  echo "${shareHost}:/export/data    /data    nfs defaults    0 0" >> /etc/fstab
+fi
