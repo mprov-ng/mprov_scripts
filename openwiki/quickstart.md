@@ -43,4 +43,3 @@ Scripts are organized by **where they run** in the provisioning lifecycle. See [
 
 - gpfs_mmsdrrestore.sh — environment-specific GPFS restore one-liner (hardcoded `mgmt03.ib.cluster`); documented only as a caveat in the post-boot page.
 - LICENSE — AGPL-style license text present at repo root; not expanded in the wiki.
-t expanded in the wiki.

@@ -56,5 +56,5 @@ The former `/export/mprov` → `/opt/mprov` mount and the Slurm/Munge client ser
 
 ## Operational docs
 
-The repo root also carries AGENTS.md/CLAUDE.md banner blocks pointing at these `openwiki/` docs; these are documentation tooling, not part of the provisioning flow.
+The repo root also carries AGENTS.md/CLAUDE.md banner blocks pointing at these `openwiki/` docs; these are documentation tooling, not part of the provisioning flow. The wiki is refreshed by a scheduled GitHub Actions workflow (`.github/workflows/openwiki-update.yml`, daily `openwiki code --update` that opens a `docs: update OpenWiki` PR), not by manually running the CLI.
 

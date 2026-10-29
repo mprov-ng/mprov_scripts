@@ -48,4 +48,5 @@ Note the roles are executed in download order with implicit gathering; playbook 
 ## Changing this area
 
 - Config-param handling is covered by the pytest suite in `tests/` (see [Architecture Overview](../architecture/overview.md#the-entityjson-contract)): an unset or `null` param must take the script's documented default, never the string `null`. Run `python -m pytest tests` (needs Docker) when touching scripts that read `config_params`.
+- The Ansible runner's `jq` selection is covered by `tests/test_run_ansible.py`, which runs `run_ansible.sh` in the Rocky 9 test container with the ansible commands stubbed and requires each loop to fire exactly for matching entries — including a distro-only fixture (no ansible keys on the entity or groups) and an every-levels fixture tied to mPCC config inheritance (mcc#269). Run it when touching the `run_ansible.sh` filters.
 - Jobserver configs embed the mPCC `apikey` — never log or copy `/etc/mprov/*.yaml` contents into docs or issues.
