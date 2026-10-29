@@ -32,7 +32,21 @@ cat << EOF > /etc/mprov/jobserver.yaml
 EOF
 chmod 600 /etc/mprov/jobserver.yaml
 
-cp /usr/local/lib/python3.8/site-packages/mprov_jobserver/plugins/*.yaml /etc/mprov/plugins/
+# copy the default plugin configs from wherever pip3 installed the package
+# (python3.8 on Rocky 8, python3.9 on Rocky 9).  Without them the webserver
+# has no rootDir and serves / (#42).
+pkgLocation=`pip3 show mprov_jobserver 2>/dev/null | awk '/^Location:/{print $2}'`
+pluginDir="$pkgLocation/mprov_jobserver/plugins"
+if [ -z "$pkgLocation" ] || [ ! -d "$pluginDir" ]
+then
+  echo "Error: unable to find the mprov_jobserver plugin configs (looked in '$pluginDir')." >&2
+  exit 1
+fi
+if ! cp "$pluginDir"/*.yaml /etc/mprov/plugins/
+then
+  echo "Error: unable to copy the plugin configs from $pluginDir." >&2
+  exit 1
+fi
 
 cat << EOF > /etc/mprov/plugins/image-sync.yaml
 - image-sync:
