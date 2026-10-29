@@ -68,6 +68,7 @@ def formatter(monkeypatch, tmp_path):
   # buildDisks() tracks, so only creation is stubbed.
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
   f.sh = fake_sh
+  f.fstab = fstab
   return f
 
 
@@ -147,6 +148,34 @@ def test_mkfs_gets_the_type_before_the_other_options(formatter, filesystem, forc
   args = formatter.sh.ran("mkfs")[0].split()
   assert args[:4] == ["mkfs", "-t", filesystem, force]
   assert args[4] == uuid and args[-1] == "/dev/sdb1"
+
+
+def create_partition_naming_swap(device, disk, part, sectorsize, start, parttype=1):
+  # the one thing the real _createPartition() does that _makeFS() relies on.
+  if part['filesystem'] == 'linux-swap':
+    part['filesystem'] = 'linux-swap(v1)'
+  return 0
+
+
+@pytest.mark.parametrize("swap_is_fill", [False, True])
+def test_swap_is_turned_on_not_mounted(formatter, swap_is_fill):
+  # 'mount none' exited 32 and stopped the script, and nothing ran swapon (#54).
+  formatter._createPartition = create_partition_naming_swap
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb",
+    part(1, "swap", "linux-swap", fill=swap_is_fill), part(2, "/scratch", "xfs", fill=not swap_is_fill))]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+
+  swap_dev = "/dev/sdb2" if swap_is_fill else "/dev/sdb1"
+  mkswap, = formatter.sh.ran("mkswap")
+  assert mkswap.split()[1:3] == [swap_dev, "-U"]
+  swap_uuid = mkswap.split()[3]
+  assert formatter.sh.ran("swapon") == [f"swapon UUID={swap_uuid}"]
+  # the other partition is still built and mounted, and 'none' never is.
+  assert formatter.sh.ran("mount") == ["mount /scratch"]
+  fstab = formatter.fstab.read_text().splitlines()
+  assert f"UUID={swap_uuid}\tnone\t\tswap\tdefaults\t0 0" in fstab
+  assert len(fstab) == 2
 
 
 def test_raid_member_on_an_unattached_layout_stops_the_script(formatter, capsys):
