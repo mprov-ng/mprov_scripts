@@ -74,6 +74,7 @@ def test_build_disks_mounts_partition_not_disk(monkeypatch, tmp_path):
   fstab = tmp_path / "fstab"
 
   disk = {
+    "slug": "scratch-sdb",
     "diskname": "/dev/sdb",
     # Non-RAID disk: DiskLayoutAPISerializer.getMount returns None for every
     # dtype that is not 'mdrd'.
