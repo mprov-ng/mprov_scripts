@@ -63,7 +63,10 @@ do
   esac
 done
 
-echo -n "" > /tmp/mash_node_import
+# the mash input carries the BMC credentials: keep it private (mktemp makes
+# it 0600) and remove it however we leave (#40).
+mashInput=$(mktemp /tmp/mash_node_import.XXXXXX) || exit 1
+trap 'rm -f "$mashInput"' EXIT
 
 for entry in `cat $filename`
 do
@@ -81,7 +84,7 @@ do
   bmcIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$bmcNet/g"`
   ibIp=`echo $m_ipaddr | sed -e "s/$mgmtNet/$ibNet/g"`
 
-  cat << EOF >> /tmp/mash_node_import
+  cat << EOF >> "$mashInput"
 
 print Creating System ${m_hostname}
 create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size=0 systemimage=${imageName} stateful=1 disks=['compute-state-lite']
@@ -101,4 +104,4 @@ EOF
 done
 
 # Engage...
-echo "connect" | cat - /tmp/mash_node_import | mash
+echo "connect" | cat - "$mashInput" | mash
