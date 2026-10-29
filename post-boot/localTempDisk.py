@@ -25,13 +25,15 @@ class mProvStatelessDiskFormatter():
   disklayout = {}
   session = requests.Session()
   ip_address = None
+  # the script runner writes entity.json next to the scripts it downloads.
+  entityfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entity.json")
+  # for runs by hand: a node has the script runner's config, a secondary
+  # jobserver has its own.
+  configfiles = ["/etc/mprov/script-runner.yaml", "/etc/mprov/jobserver.yaml"]
 
   def __init__(self, **kwargs):
     print("mProv Local Disk Formatter Starting.")
 
-    # use the jobserver config
-    self.configfile = "/etc/mprov/jobserver.yaml"
-    
     # load our config
     self.load_config()
 
@@ -54,12 +56,24 @@ class mProvStatelessDiskFormatter():
     # return result
 
   def load_config(self):
-    # load the config yaml
-    # print(self.configfile)
+    # run by the script runner: take the mPCC URL and API key it hands us.
+    if os.path.isfile(self.entityfile) and os.access(self.entityfile, os.R_OK):
+      with open(self.entityfile, "r") as entfile:
+        entity = json.load(entfile)
+      for config_entry in ("mprovURL", "apikey"):
+        if entity.get(config_entry):
+          setattr(self, config_entry, entity[config_entry])
+      return
+
+    # otherwise load the config yaml
     yaml.add_constructor("!include", self.yaml_include)
-    
-    if not(os.path.isfile(self.configfile) and os.access(self.configfile, os.R_OK)):
-      print("Error: Unable to find a working config file.")
+
+    for configfile in self.configfiles:
+      if os.path.isfile(configfile) and os.access(configfile, os.R_OK):
+        self.configfile = configfile
+        break
+    else:
+      print(f"Error: Unable to find a working config file: no {self.entityfile} and none of {', '.join(self.configfiles)}.")
       sys.exit(1)
 
     with open(self.configfile, "r") as yamlfile:
