@@ -95,6 +95,36 @@ def mkfs_devices(f):
   return [c.split()[-1] for c in f.sh.ran("mkfs")]
 
 
+@pytest.mark.parametrize("diskname, device", [
+  ("/dev/sdb", "/dev/sdb1"),
+  ("/dev/vda", "/dev/vda1"),
+  ("/dev/mmcblk0", "/dev/mmcblk0p1"),
+  ("/dev/loop0", "/dev/loop0p1"),
+  ("/dev/md127", "/dev/md127p1"),
+])
+def test_partition_names_follow_the_kernel(formatter, diskname, device):
+  # only /dev/nvme* got the 'p' before the number (#64).
+  formatter.disklayout = [disk("d", diskname, part(1, "/scratch", "xfs", fill=True))]
+  formatter.buildDisks()
+  assert mkfs_devices(formatter) == [device]
+
+
+def test_disk_named_by_a_link_uses_the_kernel_name(formatter, tmp_path):
+  # /dev/disk/by-id/<id> partitions were named '<id>1'; the kernel's name for
+  # partition 1 of the disk the link points at is sdq1 (#64).
+  link = tmp_path / "scsi-0QEMU_QEMU_HARDDISK_drive-scsi0"
+  link.symlink_to("/dev/sdq")
+  formatter.disklayout = [
+    disk("by-id", str(link), part(1, "raid", "raid"), part(2, "/scratch", "xfs", fill=True)),
+    disk("d-sdr", "/dev/sdr", part(1, "raid", "raid")),
+    raid("/dev/md0", "/data", ("by-id", 1), ("d-sdr", 1)),
+  ]
+  formatter.buildDisks()
+  formatter.buildRAIDs()
+  assert mkfs_devices(formatter) == ["/dev/sdq2", "/dev/md0"]
+  assert formatter.sh.ran("mdadm")[-1].endswith("--raid-devices=2 /dev/sdq1 /dev/sdr1")
+
+
 def test_nvme_partitions_get_the_p_separator(formatter):
   formatter.disklayout = [disk("nv", "/dev/nvme0n1", part(1, "/scratch", "xfs", fill=True))]
   formatter.buildDisks()

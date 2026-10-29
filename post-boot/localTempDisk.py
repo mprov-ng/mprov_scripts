@@ -372,9 +372,15 @@ class mProvStatelessDiskFormatter():
       sh.mount([f"UUID={partuuid}", f"{part['mount']}"])
 
   def _setPartDevice(self, pdisk, part, partnum):
-    """ Note the device a layout partition got, for _makeFS() and buildRAIDs(). """
-    prefix = "p" if pdisk['diskname'].startswith("/dev/nvme") else ""
-    part['device'] = f"{pdisk['diskname']}{prefix}{partnum}"
+    """
+    Note the device a layout partition got, for _makeFS() and buildRAIDs().
+    Named the kernel's way (#64): the disk's kernel name (a /dev/disk/by-id/
+    link resolves to sda) plus the number, with a 'p' between when the name
+    ends in a digit (nvme0n1p1, mmcblk0p1, loop0p1, md0p1).
+    """
+    disk = self._kernelName(pdisk['diskname'])
+    prefix = "p" if disk[-1].isdigit() else ""
+    part['device'] = f"/dev/{disk}{prefix}{partnum}"
     self.partDevices[(pdisk['slug'], part['partnum'])] = part['device']
 
   def _makeFS(self, part, pdisk):
