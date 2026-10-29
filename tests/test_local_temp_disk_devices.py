@@ -138,6 +138,17 @@ def test_raid_fill_partition_is_not_formatted(formatter):
   assert mkfs_devices(formatter) == ["/dev/sdb1"]
 
 
+@pytest.mark.parametrize("filesystem, force, uuid", [("xfs", "-f", "-m"), ("ext4", "-F", "-U")])
+def test_mkfs_gets_the_type_before_the_other_options(formatter, filesystem, force, uuid):
+  # util-linux mkfs stops reading its own options at the first one it
+  # doesn't know: 'mkfs -f -t xfs' ran mkfs.ext2 -f, which failed (#57).
+  formatter.disklayout = [disk("d-sdb", "/dev/sdb", part(1, "/scratch", filesystem, fill=True))]
+  formatter.buildDisks()
+  args = formatter.sh.ran("mkfs")[0].split()
+  assert args[:4] == ["mkfs", "-t", filesystem, force]
+  assert args[4] == uuid and args[-1] == "/dev/sdb1"
+
+
 def test_raid_member_on_an_unattached_layout_stops_the_script(formatter, capsys):
   formatter.disklayout = [raid("/dev/md0", "/data", ("other-sdb", 1), ("other-sdc", 1))]
   formatter.buildDisks()

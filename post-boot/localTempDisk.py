@@ -288,7 +288,9 @@ class mProvStatelessDiskFormatter():
       
     else:
       print(f"Building {part['filesystem']} file system on {dev}...")
-      sh.mkfs(f"{part['force']}", f"-t", f"{part['filesystem']}", f"{part['uuidopt']}", f"{part['uuid']}", f"{dev}")
+      # -t first: mkfs stops reading its own options at the first one it
+      # doesn't know, so after the force flag it never saw the type (#57).
+      sh.mkfs("-t", f"{part['filesystem']}", f"{part['force']}", f"{part['uuidopt']}", f"{part['uuid']}", f"{dev}")
     return partuuid
 
 def main():
