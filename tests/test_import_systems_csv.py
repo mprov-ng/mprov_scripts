@@ -85,3 +85,54 @@ def test_mash_input_is_removed_when_mash_fails():
   code, err, mash, during, after = run(GOOD, mash_rc=3)
   assert code == 3
   assert mash is not None and after == ""
+
+
+# #26: one record per line, CR and surrounding whitespace stripped, bad rows refused.
+
+def nic(mash, name):
+  # the first node's NIC of that name
+  line = [l for l in creates(mash) if l.startswith(f"create systems.models.NetworkInterface name={name} ")][0]
+  return dict(f.split("=", 1) for f in line.split()[2:])
+
+
+def test_crlf_and_spaces_around_fields_are_stripped():
+  code, err, mash, _, _ = run("n01 , aa:bb:cc:dd:ee:01 , 172.20.1.11\r\n\r\nn02,aa:bb:cc:dd:ee:02,172.20.1.12\r\n")
+  assert code == 0, err
+  assert "\r" not in mash
+  hosts = [l.split()[2] for l in creates(mash) if l.startswith("create systems.models.System ")]
+  assert hosts == ["hostname=n01", "hostname=n02"]
+  assert nic(mash, "ens0")["ipaddress"] == "172.20.1.11"
+  assert nic(mash, "ens0")["mac"] == "'aa:bb:cc:dd:ee:01'"
+
+
+def test_last_line_without_a_newline_is_imported():
+  code, err, mash, _, _ = run("n01,aa:bb:cc:dd:ee:01,172.20.1.11")
+  assert code == 0, err
+  assert len(creates(mash)) == 4
+
+
+def test_header_and_comment_lines_are_skipped():
+  code, err, mash, _, _ = run("nodename,mac,ipaddress\n# rack 1\nn01,aa:bb:cc:dd:ee:01,172.20.1.11\n")
+  assert code == 0, err
+  assert len(creates(mash)) == 4
+
+
+def test_dns_fallback_for_an_empty_ip():
+  code, err, mash, _, _ = run("dns01,aa:bb:cc:dd:ee:05,\n")
+  assert code == 0, err
+  assert nic(mash, "ens0")["ipaddress"] == "172.20.1.50"
+
+
+@pytest.mark.parametrize("row, message", [
+  ("n 01,aa:bb:cc:dd:ee:01,172.20.1.11", "bad node name 'n 01'"),
+  ("n01,aa:bb:cc:dd:ee:01,172.20.1.11,extra", "expected nodename,mac[,ipaddress]"),
+  ("n01", "expected nodename,mac[,ipaddress]"),
+  ("n01,aa:bb:cc:dd:ee,172.20.1.11", "bad MAC address 'aa:bb:cc:dd:ee'"),
+  ("nxhost,aa:bb:cc:dd:ee:01,", "no IPv4 address for nxhost"),
+])
+def test_a_bad_row_stops_the_whole_import(row, message):
+  code, err, mash, _, after = run(GOOD + row + "\n")
+  assert code == 1
+  assert f"line 3: {message}" in err
+  assert "nothing was imported" in err
+  assert mash is None and after == ""
