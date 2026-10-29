@@ -50,6 +50,7 @@ def formatter(monkeypatch, tmp_path):
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
   f._makeFS = lambda part, pdisk: "uuid"
   f._activate = lambda part, partuuid: None
+  f._waitForPartition = lambda device: None
   f.procMounts = str(tmp_path / "mounts")
   f.procSwaps = str(tmp_path / "swaps")
   f.sysBlock = str(tmp_path / "block")

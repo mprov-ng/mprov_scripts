@@ -98,6 +98,7 @@ def test_build_disks_mounts_partition_not_disk(monkeypatch, tmp_path):
   formatter._makeFS = lambda part, pdisk: partuuid
   # reads this host's mounts and sysfs; tested in test_local_temp_disk_in_use.py.
   formatter._checkDisks = lambda: None
+  formatter._waitForPartition = lambda device: None
 
   fake_sh = FakeSh(mountable=[str(part_mount)])
   fake_os = FakeOS(mod.os)

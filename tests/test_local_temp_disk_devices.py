@@ -14,6 +14,7 @@ gets.
 import builtins
 import importlib.util
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -69,6 +70,8 @@ def formatter(monkeypatch, tmp_path):
   f._createPartition = lambda device, disk, part, sectorsize, start, parttype=1: 0
   # reads this host's mounts and sysfs; tested in test_local_temp_disk_in_use.py.
   f._checkDisks = lambda: None
+  # waits for /dev nodes this host doesn't have; tested below.
+  f._waitForPartition = lambda device: None
   f.sh = fake_sh
   f.fstab = fstab
   f.fstabfile = str(fstab)
@@ -300,3 +303,25 @@ def test_fstab_is_written_when_the_node_had_none(formatter):
   lines = formatter.fstab.read_text().splitlines()
   assert len(lines) == 3 and lines[1].split()[1] == "/scratch"
   assert not Path(f"{formatter.fstab}.mprov-bak").exists()
+
+
+# _waitForPartition(): a new partition's device can be missing for a moment
+# after the table is written (#64).
+
+def wait(formatter, device, timeout):
+  return type(formatter)._waitForPartition(formatter, str(device), timeout=timeout)
+
+
+def test_wait_settles_udev_and_returns_once_the_device_is_there(formatter, tmp_path):
+  device = tmp_path / "sdb1"
+  threading.Timer(0.3, device.touch).start()
+  wait(formatter, device, timeout=5)
+  assert device.exists()
+  assert formatter.sh.ran("udevadm") == ["udevadm settle --timeout=5"]
+
+
+def test_wait_gives_up_on_a_device_that_never_appears(formatter, tmp_path, capsys):
+  with pytest.raises(SystemExit) as exit:
+    wait(formatter, tmp_path / "sdb1", timeout=0.3)
+  assert exit.value.code == 1
+  assert "didn't appear within 0.3s" in capsys.readouterr().err

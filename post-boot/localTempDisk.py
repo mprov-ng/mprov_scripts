@@ -166,6 +166,7 @@ class mProvStatelessDiskFormatter():
         
         start = start + self._createPartition(device, disk, part, sectorsize, start) + 1
         self._setPartDevice(pdisk, part, partnum)
+        self._waitForPartition(part['device'])
         if part['filesystem'] != 'raid' and part['mount'] != 'raid':
           partuuid = self._makeFS(part, pdisk)
           self._addToFstab(partuuid, part['mount'], part['filesystem'])
@@ -176,6 +177,7 @@ class mProvStatelessDiskFormatter():
       if fillpart is not None:
         self._createPartition(device, disk, fillpart, sectorsize, start)
         self._setPartDevice(pdisk, fillpart, partnum)
+        self._waitForPartition(fillpart['device'])
 
         if fillpart['filesystem'] != 'raid' and fillpart['mount'] != 'raid':
           partuuid = self._makeFS(fillpart, pdisk)
@@ -382,6 +384,23 @@ class mProvStatelessDiskFormatter():
     prefix = "p" if disk[-1].isdigit() else ""
     part['device'] = f"/dev/{disk}{prefix}{partnum}"
     self.partDevices[(pdisk['slug'], part['partnum'])] = part['device']
+
+  def _waitForPartition(self, device, timeout=30):
+    """
+    Wait for a partition we just created to show up (#64).  udev re-reads the
+    table after parted closes the disk, so the device can be missing for a
+    moment: mkswap once failed with 'cannot open /dev/sda1' on the rig.
+    """
+    try:
+      sh.udevadm(['settle', f'--timeout={timeout}'])
+    except Exception as e:
+      print(f"Warning: udevadm settle failed ({e}), waiting for {device} anyway.", file=sys.stderr)
+    deadline = time.monotonic() + timeout
+    while not os.path.exists(device):
+      if time.monotonic() > deadline:
+        print(f"Error: {device} didn't appear within {timeout}s of creating it.", file=sys.stderr)
+        sys.exit(1)
+      time.sleep(0.1)
 
   def _makeFS(self, part, pdisk):
     # layout partitions carry the device buildDisks() made for them; a RAID
