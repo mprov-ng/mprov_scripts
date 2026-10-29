@@ -138,3 +138,62 @@ def test_extra_packages(value, dnf):
   assert code == 0
   assert err == ""  # no jq errors
   assert out == dnf
+
+
+# setup_data_share_mount.sh
+
+DATA_ENTRY = "{}:/export/data    /data    nfs defaults    0 0\n"
+ROOT_ENTRY = "UUID=x / xfs defaults 0 0"
+
+
+def set_fstab(text):
+  return f"printf %s {shlex.quote(text)} > /etc/fstab"
+
+
+@pytest.mark.parametrize("value, host", [
+  ("ib-mpcc", "ib-mpcc"),
+  (MISSING, "mpcc.example"),
+  (None, "mpcc.example"),
+  ("", "mpcc.example"),
+])
+def test_data_share_host(value, host):
+  code, err, out = run("image-gen/setup_data_share_mount.sh", {"mprovDataShareHost": value},
+                       set_fstab(ROOT_ENTRY + "\n"), "cat /etc/fstab")
+  assert code == 0 and err == ""
+  assert out == ROOT_ENTRY + "\n" + DATA_ENTRY.format(host)
+
+
+def test_data_share_no_fstab_yet():
+  code, err, out = run("image-gen/setup_data_share_mount.sh", {}, "rm -f /etc/fstab", "cat /etc/fstab")
+  assert code == 0 and err == ""
+  assert out == DATA_ENTRY.format("mpcc.example")
+
+
+def test_data_share_last_line_without_newline():
+  # the entry was glued onto the last line, losing both mounts (#21).
+  code, err, out = run("image-gen/setup_data_share_mount.sh", {}, set_fstab(ROOT_ENTRY), "cat /etc/fstab")
+  assert code == 0 and err == ""
+  assert out == ROOT_ENTRY + "\n" + DATA_ENTRY.format("mpcc.example")
+
+
+@pytest.mark.parametrize("line", [
+  "# /data comes from mpcc:/export/data",
+  "otherhost:/export/data/apps    /apps    nfs defaults    0 0",
+  "#mpcc:/export/data    /data    nfs defaults    0 0",
+])
+def test_data_share_added_despite_a_mention(line):
+  # a comment or another export naming /export/data skipped the mount (#21).
+  code, err, out = run("image-gen/setup_data_share_mount.sh", {}, set_fstab(line + "\n"), "cat /etc/fstab")
+  assert code == 0 and err == ""
+  assert out == line + "\n" + DATA_ENTRY.format("mpcc.example")
+
+
+@pytest.mark.parametrize("fstab", [
+  DATA_ENTRY.format("mpcc.example"),
+  ROOT_ENTRY + "\nnfs01:/srv/data\t/data\tnfs\tdefaults\t0 0\n",
+])
+def test_data_share_existing_data_mount_left_alone(fstab):
+  # a rerun doesn't add it twice, and an admin's own /data mount is kept.
+  code, err, out = run("image-gen/setup_data_share_mount.sh", {}, set_fstab(fstab), "cat /etc/fstab")
+  assert code == 0 and err == ""
+  assert out == fstab
