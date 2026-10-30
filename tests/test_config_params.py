@@ -110,14 +110,14 @@ def test_gpus(value, gres):
   code, err, out = run("post-boot/slurm_enable_gpus.sh", {"gpus": value},
                        "mkdir -p /etc/sysconfig", SHOW_SLURM)
   assert code == 0 and err == ""
-  assert out == f'SLURM=" --conf Gres={gres}"\n#\ndaemon-reload\nrestart slurmd\n'
+  assert out == f'SLURMD_OPTIONS="--conf Gres={gres}"\n#\ndaemon-reload\nrestart slurmd\n'
 
 
 def test_gpus_replaces_an_existing_entry():
   setup = """mkdir -p /etc/sysconfig && printf '%s\\n' 'OTHER=1' 'SLURM=" --conf Gres=gpu:null"' > /etc/sysconfig/slurmd"""
   code, err, out = run("post-boot/slurm_enable_gpus.sh", {"gpus": 8}, setup, SHOW_SLURM)
   assert code == 0 and err == ""
-  assert out.split("#\n")[0] == 'OTHER=1\nSLURM=" --conf Gres=gpu:8"\n'
+  assert out.split("#\n")[0] == 'OTHER=1\nSLURMD_OPTIONS="--conf Gres=gpu:8"\n'
 
 
 # extra_packages.sh
