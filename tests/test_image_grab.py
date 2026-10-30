@@ -144,8 +144,18 @@ def test_rsync_failure_is_reported():
   code, log, out = run("-n node01 -i compute", env="RSYNC_EXIT=23",
                        check="cat /tmp/node01-to-compute.log")
   assert code == 1, log
-  assert "Error: rsync failed, see /tmp/node01-to-compute.log" in log
+  assert "Error: rsync failed (exit 23), see /tmp/node01-to-compute.log" in log
   assert "successfully" not in log
+  assert "rsync-stderr-line" in out
+
+
+def test_vanished_files_are_only_a_warning():
+  # rsync exits 24 when files disappear on a running node mid-copy.
+  code, log, out = run("-n node01 -i compute", env="RSYNC_EXIT=24",
+                       check="cat /tmp/node01-to-compute.log")
+  assert code == 0, log
+  assert "Warn: some files vanished on node01 during the copy (rsync exit 24)" in log
+  assert "successfully grabbed" in log
   assert "rsync-stderr-line" in out
 
 

@@ -92,12 +92,17 @@ EXCLUDE_DIRS=(--exclude=proc/ --exclude=dev/ --exclude=sys/ --exclude=run/ --exc
 # perform the rsync from the node to the image directory
 LOG="/tmp/$NODE-to-$IMAGE_NAME.log"
 echo -n "Grabbing image $IMAGE_NAME from node $NODE (log: $LOG)..."
-if ! rsync -avzx "${EXCLUDE_DIRS[@]}" --progress "${DELETE[@]}" "root@$NODE:/" "$DEST/" > "$LOG" 2>&1; then
-    echo
-    echo "Error: rsync failed, see $LOG" >&2
+status=0
+rsync -avzx "${EXCLUDE_DIRS[@]}" --progress "${DELETE[@]}" "root@$NODE:/" "$DEST/" > "$LOG" 2>&1 || status=$?
+echo
+# 24: files vanished on the node while it was being copied, normal for a
+# running system, so only a warning.
+if [ "$status" -eq 24 ]; then
+    echo "Warn: some files vanished on $NODE during the copy (rsync exit 24), see $LOG" >&2
+elif [ "$status" -ne 0 ]; then
+    echo "Error: rsync failed (exit $status), see $LOG" >&2
     exit 1
 fi
-echo
 echo "Image $IMAGE_NAME successfully grabbed from node $NODE"
 exit 0
 
