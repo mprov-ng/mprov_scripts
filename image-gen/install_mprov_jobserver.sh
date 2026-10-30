@@ -5,11 +5,23 @@
 # and repo-update.  This should allow for distributed jobservers to run 
 # via the mPCC's redirection stuff.
 
-cd /tmp/mprov
+# read entity.json by its full path, and stop before writing anything if it,
+# or a value we need from it, is missing (#31).
+ENTITY=/tmp/mprov/entity.json
+if ! [ -s "$ENTITY" ] || ! jq -e 'type == "object"' "$ENTITY" > /dev/null 2>&1
+then
+  echo "Error: unable to read $ENTITY" >&2
+  exit 1
+fi
 
 # get some initial variables.
-mprovURL=`cat entity.json | jq .mprovURL -r`
-apikey=`cat entity.json | jq .apikey -r`
+mprovURL=`jq -r '.mprovURL // empty' "$ENTITY"`
+apikey=`jq -r '.apikey // empty' "$ENTITY"`
+if [ -z "$mprovURL" ] || [ -z "$apikey" ]
+then
+  echo "Error: mprovURL or apikey missing from $ENTITY" >&2
+  exit 1
+fi
 
 # make sure the jobserver is installed
 pip3 install mprov_jobserver

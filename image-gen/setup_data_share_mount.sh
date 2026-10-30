@@ -7,14 +7,26 @@
 #                        mPCC's name on an IB or other cluster network.  Can be
 #                        set on the OS distro, a system group or the image.
 #                        Defaults to the mPCC host in mprovURL.
-cd /tmp/mprov/
-mprovURL=`cat entity.json | jq .mprovURL -r`
+# read entity.json by its full path, and stop before writing anything if it,
+# or a value we need from it, is missing (#31).
+ENTITY=/tmp/mprov/entity.json
+if ! [ -s "$ENTITY" ] || ! jq -e 'type == "object"' "$ENTITY" > /dev/null 2>&1
+then
+  echo "Error: unable to read $ENTITY" >&2
+  exit 1
+fi
+mprovURL=`jq -r '.mprovURL // empty' "$ENTITY"`
 mpccHost=`echo "$mprovURL" | awk -F/ '{print $3}'`
 # drop any :port, which isn't part of an NFS server name.
 mpccHost=`echo "$mpccHost" | sed -E 's/:[0-9]+$//'`
 
-shareHost=`jq -r '.config_params.mprovDataShareHost // empty' entity.json`
+shareHost=`jq -r '.config_params.mprovDataShareHost // empty' "$ENTITY"`
 shareHost=${shareHost:-$mpccHost}
+if [ -z "$shareHost" ]
+then
+  echo "Error: no mprovDataShareHost config param and no mPCC host in mprovURL ('$mprovURL')" >&2
+  exit 1
+fi
 
 dnf -y install nfs-utils
 
