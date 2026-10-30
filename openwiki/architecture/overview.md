@@ -41,7 +41,7 @@ Scripts treat a missing or `null` config param as unset — via `jq` guards like
 
 ## Python post-boot scripts (MProvScript)
 
-Three post-boot scripts are Python classes subclassing `MProvScript` from the `mprov_jobserver.script` package (`setupBMC.py`, `register_IPv6_ll.py`; `localTempDisk.py` predates this and reimplements config/session loading from `/etc/mprov/jobserver.yaml`). The base class provides `self.session` (an authenticated `requests.Session`) and `self.mprovURL`, so scripts query the mPCC REST API directly, e.g. `GET {mprovURL}systems/?hostname=...` in `setupBMC.py`. `register_IPv6_ll.py` notes it requires `mprov-jobserver>=0.0.34`.
+Three post-boot scripts are Python classes subclassing `MProvScript` from the `mprov_jobserver.script` package (`setupBMC.py`, `register_IPv6_ll.py`; `localTempDisk.py` predates this and reimplements config/session loading — it reads `entity.json` next to the script when the script runner provides it, falling back to `/etc/mprov/script-runner.yaml` then `/etc/mprov/jobserver.yaml` for manual runs). The base class provides `self.session` (an authenticated `requests.Session`) and `self.mprovURL`, so scripts query the mPCC REST API directly, e.g. `GET {mprovURL}systems/?hostname=...` in `setupBMC.py`. `register_IPv6_ll.py` notes it requires `mprov-jobserver>=0.0.34`.
 
 ## Shared NFS layout
 
