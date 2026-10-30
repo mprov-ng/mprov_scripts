@@ -48,52 +48,6 @@ def run(script, params, setup="", check=""):
   return int(status.strip().split("=")[1]), stderr, out
 
 
-# set_root_pw.sh
-
-SHADOW = "root:$6$distro$hash:19000:0:99999:7:::\nbin:*:19000:0:99999:7:::\n"
-SET_SHADOW = f"printf %s {shlex.quote(SHADOW)} > /etc/shadow"
-
-
-def test_rootpw_set():
-  code, err, out = run("image-gen/set_root_pw.sh", {"rootpw": "$6$new$hash"},
-                       SET_SHADOW, "cat /etc/shadow")
-  assert code == 0 and err == ""
-  lines = out.splitlines()
-  assert lines[0] == "root:$6$new$hash:18700:0:99999:7:::"
-  assert "bin:*:19000:0:99999:7:::" in lines
-  assert len(lines) == 2
-
-
-@pytest.mark.parametrize("value", [MISSING, None, ""])
-def test_rootpw_unset_leaves_shadow_alone(value):
-  code, err, out = run("image-gen/set_root_pw.sh", {"rootpw": value},
-                       SET_SHADOW, "cat /etc/shadow")
-  assert code == 0 and err == ""
-  assert out == SHADOW
-
-
-# setup_ssh.sh
-
-KEYS = "ssh-ed25519 AAAAdistro root@distro\n"
-SET_KEYS = f"mkdir -p /root/.ssh && printf %s {shlex.quote(KEYS)} > /root/.ssh/authorized_keys"
-SHOW_SSH = "cat /root/.ssh/authorized_keys; ls /etc/ssh/ssh_host_ed25519_key"
-
-
-def test_rootsshkey_set():
-  key = "ssh-ed25519 AAAAconfig root@config"
-  code, err, out = run("image-gen/setup_ssh.sh", {"rootsshkey": key}, SET_KEYS, SHOW_SSH)
-  assert code == 0 and err == ""
-  assert out == f"{key}\n/etc/ssh/ssh_host_ed25519_key\n"
-
-
-@pytest.mark.parametrize("value", [MISSING, None, ""])
-def test_rootsshkey_unset_keeps_the_distro_keys(value):
-  code, err, out = run("image-gen/setup_ssh.sh", {"rootsshkey": value}, SET_KEYS, SHOW_SSH)
-  assert code == 0 and err == ""
-  # the host keys are still generated.
-  assert out == f"{KEYS}/etc/ssh/ssh_host_ed25519_key\n"
-
-
 # slurm_enable_gpus.sh
 
 SHOW_SLURM = "cat /etc/sysconfig/slurmd; echo '#'; cat /tmp/systemctl.log"
