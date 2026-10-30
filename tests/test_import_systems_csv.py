@@ -157,3 +157,18 @@ def test_an_address_off_the_management_network_stops_the_import(ip):
   assert code == 1
   assert f"line 3: {ip} for n03 isn't on the management network 172.20.x.x" in err
   assert mash is None
+
+
+# #47: -i was parsed but never used; the NIC name was always ens0.
+
+def test_interface_name_option_names_the_nic():
+  code, err, mash, _, _ = run(GOOD, "-i eno1")
+  assert code == 0, err
+  assert nic(mash, "eno1")["ipaddress"] == "172.20.1.11"
+  assert not any("name=ens0" in l for l in creates(mash))
+
+
+def test_nic_is_still_ens0_by_default():
+  code, err, mash, _, _ = run(GOOD)
+  assert code == 0, err
+  assert nic(mash, "ens0")["ipaddress"] == "172.20.1.11"

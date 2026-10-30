@@ -94,6 +94,14 @@ def test_extra_packages(value, dnf):
   assert out == dnf
 
 
+def test_extra_packages_are_not_glob_expanded():
+  # an unquoted $pkgs let "python3*" match files in the working directory (#47).
+  code, err, out = run("image-gen/extra_packages.sh", {"extra_packages": ["python3*", "vim"]},
+                       "mkdir -p /work && cd /work && touch python3-match", SHOW_DNF)
+  assert code == 0 and err == ""
+  assert out == "-y install python3* vim\n"
+
+
 # setup_data_share_mount.sh
 
 DATA_ENTRY = "{}:/export/data    /data    nfs defaults    0 0\n"

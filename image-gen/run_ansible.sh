@@ -33,7 +33,7 @@ rm -rf /tmp/mprov/ansible/
 
 # create a variables.json file for ansible
 mkdir -p /tmp/mprov/ansible/
-cd /tmp/mprov/ansible/
+cd /tmp/mprov/ansible/ || exit 1
 
 # grab just the config_params... maybe more?  we will see...
 cat /tmp/mprov/entity.json | jq .config_params  > variables.json
@@ -81,7 +81,7 @@ do
 done
 
 
-cd /tmp/mprov/ansible
+cd /tmp/mprov/ansible || exit 1
 # Now on to the roles, if applicable.
 # download the roles.
 mkdir -p roles/
@@ -116,7 +116,7 @@ EOF
   fi
 done
 
-cd /tmp/mprov/ansible
+cd /tmp/mprov/ansible || exit 1
 # download the playbooks.
 mkdir -p playbooks/
 
