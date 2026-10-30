@@ -31,14 +31,14 @@ class MScript(MProvScript):
     url = f"{self.mprovURL}networkinterfaces/?hostname={myHostname}"
     result=self.session.get(url)
     if result.status_code != 200:
-      print("Error: Unable to get interfaces form mPCC")
-      print(f"{result.text}")
+      print("Error: Unable to get interfaces form mPCC", file=sys.stderr)
+      print(f"{result.text}", file=sys.stderr)
       return 1
     interfaces = []
     try: 
       interfaces = result.json()
     except:
-      print("Error: unable to parse JSON from mPCC.")
+      print("Error: unable to parse JSON from mPCC.", file=sys.stderr)
       return 1 
     ipdb = IPDB()
     for interface in interfaces:
@@ -61,13 +61,14 @@ class MScript(MProvScript):
                 url = f"{self.mprovURL}networkinterfaces/{interface['id']}/"
                 result = self.session.patch(url, data=json.dumps({'ipv6ll': ipv6ll}))
                 if result.status_code != 200:
-                  print("Error: Unable to update mPCC")
-                  # print(f"{result.text}")
+                  print(f"Error: Unable to update mPCC, {result.status_code}: {result.text}", file=sys.stderr)
                   return 1
+    return 0
 
   def main(self):
     self.startSession()
-    self.run()
+    # run() returns the exit status (#37).
+    return self.run()
 
 def main():
   script = MScript()

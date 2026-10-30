@@ -99,7 +99,7 @@ def script(monkeypatch):
 
 
 def test_bmc_is_set_up_and_its_mac_registered(script):
-  script.run()
+  assert script.run() == 0
   assert script.run_.ipmitool() == [
     ["lan", "set", "1", "ipsrc", "static"],
     ["lan", "set", "1", "ipaddr", "10.0.0.50"],
@@ -134,7 +134,7 @@ def test_no_gateway_no_defgw(script):
 ])
 def test_password_exec_cant_carry_is_refused(script, capsys, password, shown):
   script.session.bmcs = [bmc(password=password)]
-  script.run()
+  assert script.run() == 1
   err = capsys.readouterr().err
   assert "can't carry" in err and repr(shown) in err
   assert password not in err
@@ -163,7 +163,7 @@ def test_failed_bmc_request_exits_instead_of_crashing(script, capsys):
 
 def test_system_without_a_bmc_is_skipped(script, capsys):
   script.session.bmcs = []
-  script.run()
+  assert script.run() == 0
   assert "no BMC in the mPCC" in capsys.readouterr().out
   assert script.run_.calls == [] and script.session.patches == []
 
@@ -171,7 +171,47 @@ def test_system_without_a_bmc_is_skipped(script, capsys):
 def test_ipmitool_failure_shows_its_error(script, capsys):
   # stdout/stderr weren't captured, so this printed 'None None'.
   script.run_.fail = ("vlan",)
-  script.run()
+  assert script.run() == 1
   err = capsys.readouterr().err
   assert "ipmitool lan set 1 vlan id off failed (1): Invalid data field in request" in err
   assert ["user", "set", "name", "2", "admin"] not in script.run_.ipmitool()
+
+
+@pytest.mark.parametrize("fail", [
+  "lan set 1 ipsrc", "lan set 1 ipaddr", "netmask", "defgw", "vlan", "user set name", "exec", "user enable",
+])
+def test_every_failed_step_fails_the_script(script, fail):
+  # each of these printed an error and still exited 0 (#37).
+  script.run_.fail = (fail,)
+  assert script.run() == 1
+  assert script.session.patches == []
+
+
+def test_failed_modprobe_fails_the_script(script):
+  script.run_.fail = ("ipmi_devintf",)
+  assert script.run() == 1
+  assert script.run_.ipmitool() == []
+
+
+def test_failed_mac_registration_fails_the_script(script, capsys):
+  script.session.patch = lambda url, data=None: Response(400, {"mac": ["bad"]})
+  assert script.run() == 1
+  assert 'Error updating bmc mac, 400: {"mac": ["bad"]}' in capsys.readouterr().err
+
+
+def test_unparsable_systems_reply_shows_the_error(script, capsys):
+  # the message printed a literal '{e}' (#45).
+  script.session.get = lambda url: types.SimpleNamespace(status_code=200, json=lambda: None)
+  with pytest.raises(SystemExit) as exit:
+    script.run()
+  assert exit.value.code == 1
+  err = capsys.readouterr().err
+  assert "Unable to parse mPCC response. 'NoneType' object is not iterable" in err
+  assert "{e}" not in err
+
+
+@pytest.mark.parametrize("status", [0, 1])
+def test_main_returns_the_run_status(script, status):
+  script.startSession = lambda: None
+  script.run = lambda: status
+  assert script.main() == status

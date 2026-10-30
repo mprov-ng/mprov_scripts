@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import subprocess
 import tempfile
-from token import EXACT_TOKEN_TYPES
 import yaml, json
 import os, sys, time, socket, requests, sh
 from mprov_jobserver.script import MProvScript
@@ -71,7 +70,7 @@ class MScript(MProvScript):
       print("Attempting to get our BMC info from the MPCC...")
       response = self.session.get(f"{self.mprovURL}systems/?hostname={socket.gethostname()}")
       if response.status_code != 200:
-        print(f"Error: Unable to determine our ID from {socket.gethostname()}")
+        print(f"Error: Unable to determine our ID from {socket.gethostname()}", file=sys.stderr)
         sys.exit(1)
       try:
         found=False
@@ -80,10 +79,10 @@ class MScript(MProvScript):
             found=True
             break
       except Exception as e:
-        print("Error: Unable to parse mPCC response. {e}")
+        print(f"Error: Unable to parse mPCC response. {e}", file=sys.stderr)
         sys.exit(1)
       if found != True:
-        print("Error: unable to find host in mPCC.")
+        print("Error: unable to find host in mPCC.", file=sys.stderr)
         sys.exit(1)
 
       response = self.session.get(f"{self.mprovURL}systembmcs/?system={system['id']}&detail")
@@ -97,42 +96,42 @@ class MScript(MProvScript):
           sys.exit(1)
         if not bmcs:
           print("This system has no BMC in the mPCC, nothing to set up.")
-          return
+          return 0
         bmc = bmcs[0]
         # let's execute some local commands to try to set up the bmc.
         result = subprocess.run(["/sbin/modprobe",  "ipmi_devintf"], capture_output=True, text=True)
         if result.returncode:
           print(f"Error: modprobe ipmi_devintf failed: {(result.stderr or result.stdout).strip()}", file=sys.stderr)
-          return
+          return 1
 
         if not self.ipmitool("lan", "set", "1", "ipsrc", "static"):
-          return
+          return 1
         if not self.ipmitool("lan", "set", "1", "ipaddr", f"{bmc['ipaddress']}"):
-          return
+          return 1
         # once, and without the trailing space it used to carry (#27).
         if not self.ipmitool("lan", "set", "1", "netmask", self.cidr_to_netmask(bmc['network']['netmask'])):
-          return
+          return 1
         # a network can have no gateway (#27).
         if bmc['network'].get('gateway'):
           if not self.ipmitool("lan", "set", "1", "defgw", "ipaddr", bmc['network']['gateway']):
-            return
+            return 1
 
         if bmc['vlan'] == 0 and bmc['network']['vlan'] == 0:
           bmc['vlan'] = 'off'
         elif bmc['vlan'] == 0:
           bmc['vlan'] = bmc['network']['vlan']
         if not self.ipmitool("lan", "set", "1", "vlan", "id", f"{bmc['vlan']}"):
-          return
+          return 1
 
         if not self.ipmitool("user", "set", "name", "2", f"{bmc['username']}"):
-          return
+          return 1
         if bmc['password']:
           if not self.set_password(2, bmc['password']):
-            return
+            return 1
         else:
           print("Warning: no BMC password in the mPCC, leaving the BMC's password as it is.", file=sys.stderr)
         if not self.ipmitool("user", "enable", "2"):
-          return
+          return 1
       else:
         # without a BMC record there's nothing to register the MAC against (#36).
         print(f"Error: Unable to get bmc info, {response.status_code}: {response.text}", file=sys.stderr)
@@ -153,14 +152,14 @@ class MScript(MProvScript):
         }
         response = self.session.patch(f"{self.mprovURL}systembmcs/{bmc['id']}/", data=json.dumps(data))
         if response.status_code != 200:
-          print(f"Error updating bmc mac.")
-          print(response.status_code)
-          print(response.text)
-
+          print(f"Error updating bmc mac, {response.status_code}: {response.text}", file=sys.stderr)
+          return 1
+      return 0
 
   def main(self):
     self.startSession()
-    self.run()
+    # run() returns the exit status (#37).
+    return self.run()
 
 def main():
   script = MScript()
