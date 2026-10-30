@@ -57,6 +57,21 @@ def test_creates_the_file_when_missing():
   assert out.splitlines() == ['SLURMD_OPTIONS="--conf Gres=gpu:4"', "mode=644"]
 
 
+@pytest.mark.parametrize("gpus", ["a100:4", "tesla_v100-sxm2.16gb:8"])
+def test_takes_a_typed_gpu_count(gpus):
+  code, log, out = run({"gpus": gpus}, check=f"cat {CONF}")
+  assert code == 0, log
+  assert out.strip() == f'SLURMD_OPTIONS="--conf Gres=gpu:{gpus}"'
+
+
+def test_replaces_a_typed_entry_with_a_count():
+  code, log, out = run({"gpus": "2"},
+                       pre=f"echo 'SLURMD_OPTIONS=\"-v --conf Gres=gpu:a100:4\"' > {CONF}",
+                       check=f"cat {CONF}")
+  assert code == 0, log
+  assert out.strip() == 'SLURMD_OPTIONS="-v --conf Gres=gpu:2"'
+
+
 def test_defaults_to_one_gpu():
   code, log, out = run({}, check=f"cat {CONF}")
   assert code == 0, log
@@ -163,13 +178,15 @@ def test_leaves_no_temp_files_behind():
   assert out.split() == ["slurmd"]
 
 
-@pytest.mark.parametrize("gpus", ["two", "2\"; touch /tmp/x; \"", "-1", "1.5"])
+@pytest.mark.parametrize("gpus", [
+  "two", "2\"; touch /tmp/x; \"", "-1", "1.5", "a100:", ":4", "a100:4:2", "a 100:4", "a100:four",
+])
 def test_refuses_a_non_numeric_gpu_count(gpus):
   code, log, out = run({"gpus": gpus}, pre=f"echo 'OTHER=1' > {CONF}",
                        check=f"cat {CONF}; ls -A /etc/sysconfig | grep ^slurmd; "
                              "cat /tmp/systemctl.log 2>/dev/null")
   assert code == 1, log
-  assert "must be a number" in log
+  assert "must be a count or <type>:<count>" in log
   assert out.split() == ["OTHER=1", "slurmd"]
 
 

@@ -13,9 +13,10 @@ then
   gpus=1
 fi
 
-if ! [[ "$gpus" =~ ^[0-9]+$ ]]
+# a count, or a GPU type and count as Slurm writes them (e.g. a100:4).
+if ! [[ "$gpus" =~ ^([A-Za-z0-9_.-]+:)?[0-9]+$ ]]
 then
-  echo "Error: config param gpus must be a number, got '$gpus'" >&2
+  echo "Error: config param gpus must be a count or <type>:<count>, got '$gpus'" >&2
   exit 1
 fi
 
@@ -35,6 +36,7 @@ else
 fi
 
 # slurmd.service passes $SLURMD_OPTIONS to slurmd.  Put "--conf Gres=gpu:N"
+# (or gpu:<type>:N)
 # in the last SLURMD_OPTIONS line (the one that counts), replacing an old
 # count and keeping its other options, or add the line.  The SLURM= line
 # older versions of this script wrote is dropped.  slurmd takes one --conf,
@@ -52,7 +54,7 @@ if ! awk -v gres="$gres" -v sq="'" '
         q = substr(v, 1, 1)
         if ((q == "\"" || q == sq) && length(v) > 1 && substr(v, length(v), 1) == q)
           v = substr(v, 2, length(v) - 2)
-        gsub(/(^|[[:space:]]+)--conf[[:space:]]+"?Gres=gpu:[0-9]+"?/, "", v)
+        gsub(/(^|[[:space:]]+)--conf[[:space:]]+"?Gres=gpu:([A-Za-z0-9_.-]+:)?[0-9]+"?/, "", v)
         if (v ~ /--conf/) {
           print "Error: SLURMD_OPTIONS already has a --conf: " v > "/dev/stderr"
           exit 1
