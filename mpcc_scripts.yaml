@@ -68,4 +68,17 @@
     name: Add mitigations=off to kernel boot command line.
     filename: post-boot/add-mitigations-off.sh
     scriptType: post-boot
-    
+- model: scripts.script
+  pk: setup_data_share_mount_sh
+  fields: 
+    slug: setup_data_share_mount_sh
+    name: Mount the mPCC's /export/data share on /data (NFS).
+    filename: image-gen/setup_data_share_mount.sh
+    scriptType: image-gen
+- model: scripts.script
+  pk: install_chrony_and_timesync_sh
+  fields: 
+    slug: install_chrony_and_timesync_sh
+    name: Install chrony and sync the clock once.
+    filename: post-boot/install_chrony_and_timesync.sh
+    scriptType: post-boot
