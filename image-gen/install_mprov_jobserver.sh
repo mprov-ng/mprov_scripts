@@ -34,7 +34,6 @@ cat << EOF > /etc/mprov/jobserver.yaml
     mprovURL: "$mprovURL"
     apikey: '$apikey'
     heartbeatInterval: 10
-    runonce: True # uncomment to run the jobserver once and exit.
     jobmodules:
       - image-sync
       - mprov-webserver
