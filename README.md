@@ -10,4 +10,6 @@ Here you will find some scripts that you may find useful in your mprov_control_c
 
 New scripts intended for the mPCC should be added to the appropriate directory *and* added to `mpcc_scripts.yaml`.
 
+The scripts here are meant to work at any site; anything tied to one site's hosts or setup belongs in that site's own mPCC, not in this repo.  Scripts that aren't in `mpcc_scripts.yaml` are optional: upload them through the mPCC admin where you need them.
+
 Generated documentation lives in [`openwiki/quickstart.md`](openwiki/quickstart.md).
