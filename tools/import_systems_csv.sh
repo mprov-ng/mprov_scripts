@@ -32,13 +32,13 @@ fi
 filename=$1
 shift
 
-interfaceName=eno1
+interfaceName=ens0
 imageName=compute
 mgmtNet=172.20.
 bmcNet=172.29.
 bmcNetId=2
 nodeNetId=1
-bmcUser=admin
+bmcUser="admin"
 bmcPass=changeme
 ibNet=172.21.
 ibNetId=4
@@ -144,7 +144,7 @@ create systems.models.System hostname=${m_hostname} created_by=1 tmpfs_root_size
 let nodeId = {{ MPROV_RESULT['id'] }}
 
 # add the nic
-create systems.models.NetworkInterface name=ens0 hostname=${m_hostname} ipaddress=${m_ipaddr} bootable=1 system={{nodeId}} mac='${m_macaddr}' network=${nodeNetId}
+create systems.models.NetworkInterface name=${interfaceName} hostname=${m_hostname} ipaddress=${m_ipaddr} bootable=1 system={{nodeId}} mac='${m_macaddr}' network=${nodeNetId}
 
 # add the bmc
 create systems.models.SystemBMC system={{nodeId}} ipaddress=${bmcIp} username=${bmcUser} password=${bmcPass} network=${bmcNetId}

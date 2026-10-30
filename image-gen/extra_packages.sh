@@ -14,5 +14,7 @@ then
   echo "No extra packages."
   exit 0
 fi
-echo $pkgs
-dnf -y install $pkgs
+# split on whitespace into an array, so a name is never glob-expanded.
+read -ra pkglist <<< "$pkgs"
+echo "${pkglist[@]}"
+dnf -y install "${pkglist[@]}"
