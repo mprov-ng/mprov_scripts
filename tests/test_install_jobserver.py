@@ -45,14 +45,15 @@ def image():
 
 def run(setup, check):
   '''
-  Run the script after setup; check runs after it in the same container.
-  Returns (script's exit code, script's stderr, check's stdout).
+  Run the script after setup; check runs after it in the same container
+  (the script's stdout is in /tmp/stdout).  Returns (script's exit code,
+  script's stderr, check's stdout).
   '''
   entity = json.dumps({"mprovURL": "http://mpcc.example/", "apikey": "key"})
   cmd = f"""
     mkdir -p /tmp/mprov && echo {shlex.quote(entity)} > /tmp/mprov/entity.json
     {setup}
-    bash /script >/dev/null 2>/tmp/stderr; echo "exit=$?"
+    bash /script >/tmp/stdout 2>/tmp/stderr; echo "exit=$?"
     echo "---"; cat /tmp/stderr; echo "---"
     {check}
   """
@@ -100,3 +101,10 @@ def test_fails_when_the_package_has_no_plugin_configs():
   assert code == 1
   assert "unable to copy the plugin configs" in err
   assert out == ""
+
+
+def test_logs_the_installed_jobserver_version():
+  # not pinned, so the build log shows which release the image got (#24).
+  code, err, out = run(INSTALL_STANDIN, "grep '^mprov_jobserver version' /tmp/stdout")
+  assert code == 0, err
+  assert out.strip() == "mprov_jobserver version: 0.0.0"
