@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-# THIS SCRIPT REQUIRES mprov-jobserver>=0.0.34
 # Script Type: post-boot
 
 from mprov_jobserver.script import MProvScript

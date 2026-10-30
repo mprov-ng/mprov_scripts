@@ -23,8 +23,13 @@ then
   exit 1
 fi
 
-# make sure the jobserver is installed
+# make sure the jobserver is installed.  It's deliberately not pinned:
+# fixes reach images only through new releases.  The job server's image
+# build has already run "pip3 install --upgrade mprov_jobserver" in the
+# image before this script runs; the version is logged so a build shows
+# which one it got (#24).
 pip3 install mprov_jobserver
+echo "mprov_jobserver version: `pip3 show mprov_jobserver 2>/dev/null | awk '/^Version:/{print $2}'`"
 
 mkdir -p /etc/mprov/plugins
 
