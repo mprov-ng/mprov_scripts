@@ -6,12 +6,24 @@
 # scripts run in images and after a system boots.  This script also includes 
 # installing the mprov-nads service into the nads image.  This allows for node
 # auto detection.
-cd /tmp/mprov
+# read entity.json by its full path, and stop before writing anything if it,
+# or a value we need from it, is missing (#31).
+ENTITY=/tmp/mprov/entity.json
+if ! [ -s "$ENTITY" ] || ! jq -e 'type == "object"' "$ENTITY" > /dev/null 2>&1
+then
+  echo "Error: unable to read $ENTITY" >&2
+  exit 1
+fi
 
 # get some initial variables.
-mprovURL=`cat entity.json | jq .mprovURL -r`
-apikey=`cat entity.json | jq .apikey -r`
-entityName=`cat entity.json | jq .slug -r`
+mprovURL=`jq -r '.mprovURL // empty' "$ENTITY"`
+apikey=`jq -r '.apikey // empty' "$ENTITY"`
+if [ -z "$mprovURL" ] || [ -z "$apikey" ]
+then
+  echo "Error: mprovURL or apikey missing from $ENTITY" >&2
+  exit 1
+fi
+entityName=`jq -r .slug "$ENTITY"`
 echo "Entity Name: $entityName"
 if [ "$entityName" == "nads" ]
 then

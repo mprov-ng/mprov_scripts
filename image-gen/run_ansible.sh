@@ -4,20 +4,24 @@
 
 
 
+# read entity.json by its full path, and stop before installing or writing
+# anything if it's missing (#31).
+ENTITY=/tmp/mprov/entity.json
+if ! [ -s "$ENTITY" ] || ! jq -e 'type == "object"' "$ENTITY" > /dev/null 2>&1
+then
+  echo "Error: unable to read $ENTITY" >&2
+  exit 1
+fi
+
 # make sure ansible is installed
 # it comes form epel
 dnf -y install epel-release
 
 dnf -y install ansible
 
-cd /tmp/mprov
-
-mprovURL=`cat entity.json | jq .mprovURL -r`
-apikey=`cat entity.json | jq .apikey -r`
-
 # detect our run mode.
-imgSlug=`cat entity.json | jq -r .slug`
-if [ $imgSlug != "null" ]
+imgSlug=`jq -r .slug "$ENTITY"`
+if [ "$imgSlug" != "null" ]
 then
   runMode="image-gen"
 else
@@ -31,11 +35,6 @@ rm -rf /tmp/mprov/ansible/
 mkdir -p /tmp/mprov/ansible/
 cd /tmp/mprov/ansible/
 
-if [ ! -e /tmp/mprov/entity.json ]
-then
-  echo "ERROR: Missing entity.json!" >&2
-  exit 1
-fi
 # grab just the config_params... maybe more?  we will see...
 cat /tmp/mprov/entity.json | jq .config_params  > variables.json
 
