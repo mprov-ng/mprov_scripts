@@ -1,19 +1,19 @@
 ---
 type: Reference
 title: Image Generation Scripts
-description: The image-gen scripts baked into mProv OS images — mProv jobserver and script-runner/NADS installation, the /data NFS share mount (mprovDataShareHost), Ansible collection/role/playbook execution, root password and SSH setup (deprecated), extra packages, and yq install. Unset config params fall back to documented defaults, covered by the tests/ pytest suite.
+description: The image-gen scripts baked into mProv OS images — mProv jobserver and script-runner/NADS installation, the /data NFS share mount (mprovDataShareHost), Ansible collection/role/playbook execution, extra packages, and pinned yq install. Scripts guard their entity.json read up front, unset config params fall back to documented defaults, and the tests/ pytest suite enforces both.
 tags: [mprov, image-gen, jobserver, slurm, munge, ansible, nfs]
 ---
 
 # Image Generation Scripts
 
-Scripts in `image-gen/` run inside the mPCC image builder while an OS image (Rocky/RHEL-family, `dnf`-based) is generated. Their output is baked into the image: services, mounts, users, and config symlinks. They read context from `/tmp/mprov/entity.json` per the [entity.json contract](../architecture/overview.md#the-entityjson-contract).
+Scripts in `image-gen/` run inside the mPCC image builder while an OS image (Rocky/RHEL-family, `dnf`-based) is generated. Their output is baked into the image: services, mounts, users, and config symlinks. They read context from `/tmp/mprov/entity.json` per the [entity.json contract](../architecture/overview.md#the-entityjson-contract); the jobserver/script-runner installs, `setup_data_share_mount.sh`, and `run_ansible.sh` all validate that file up front (`[ -s ]` plus a `jq -e 'type == "object"'` check) and exit nonzero before writing anything if it or a value they need is missing — partially-configured images are worse than failed builds.
 
 ## mProv jobserver installs
 
 Two scripts install the pip package `mprov_jobserver` in different roles, each writing configs under `/etc/mprov/` (chmod 600 because they embed the `apikey`) and a systemd unit:
 
-- **`install_mprov_jobserver.sh`** — a *secondary/edge jobserver* for image and repo distribution. Job modules: `image-sync` (image dir `/export/images`), `mprov-webserver`, `image-delete`. It copies the package's default plugin configs from wherever `pip3 show mprov_jobserver` reports (the path varies across Python versions, and without them the webserver has no `rootDir` and serves `/`), exiting with an error if they're missing, then overwrites `image-sync.yaml` with the local image dir. This is what enables the mPCC's "redirection" to distributed jobservers. `post-boot/enable_and_run_jobserver.sh` later enables the service and opens firewall port 8080 (`tests/test_install_jobserver.py` covers the plugin-config copy).
+- **`install_mprov_jobserver.sh`** — a *secondary/edge jobserver* for image and repo distribution. Job modules: `image-sync` (image dir `/export/images`), `mprov-webserver`, `image-delete`. It intentionally stays unpinned on `mprov_jobserver` (the image's own build has already run `pip3 install --upgrade mprov_jobserver` before any image-gen script; fixes reach images only through new releases) and logs the version it finds, so a build log shows which release the image got. It copies the package's default plugin configs from wherever `pip3 show mprov_jobserver` reports (the path varies across Python versions, and without them the webserver has no `rootDir` and serves `/`), exiting with an error if they're missing, then overwrites `image-sync.yaml` with the local image dir. This is what enables the mPCC's "redirection" to distributed jobservers. `post-boot/enable_and_run_jobserver.sh` later enables the service and opens firewall port 8080 (`tests/test_install_jobserver.py` covers the plugin-config copy).
 - **`install_mprov_script-runner.sh`** — installs the `script-runner` module that executes image-gen and post-boot scripts, or the `nads` module when `entity.json`'s `slug` is `nads` (the node auto-detection image). The service is `Type=oneshot` with `mprov_jobserver -d -r -s -b -c /etc/mprov/<mod>.yaml` and is enabled (not started) so it runs at boot — this is the bootstrap that lets post-boot scripts run at all.
 
 ## NFS data share mount
@@ -33,17 +33,17 @@ Two scripts install the pip package `mprov_jobserver` in different roles, each w
 
 Note the roles are executed in list order with implicit gathering; playbook URLs are fetched with `wget -N`, so mPCC-hosted playbook URLs must be reachable from the node/image build. `tests/test_run_ansible.py` exercises both selection paths (merged `config` slugs and layer fallback) with the ansible commands stubbed.
 
-## Identity and package scripts
+## Package scripts
 
-- **`set_root_pw.sh`** (deprecated — prefer the OS distro's Root Password, which the jobserver applies at image build) — rewrites the `root:` line in `/etc/shadow` only when `config_params.rootpw` (a pre-hashed `/etc/shadow` value) is set; otherwise it exits 0 leaving the distro password alone.
-- **`setup_ssh.sh`** (deprecated — prefer the OS distro's Root SSH Keys) — `ssh-keygen -A`, then **replaces** `/root/.ssh/authorized_keys` with `config_params.rootsshkey` (single-key by design) only when set; otherwise the distro keys are left unchanged.
-- **`extra_packages.sh`** — installs `config_params.extra_packages`, accepted either as a JSON array or a space-separated string; a missing/null/empty value installs nothing.
-- **`install_yq.sh`** — installs Go, then `github.com/mikefarah/yq/v4` into `/usr/local/bin` (for scripts that parse YAML at runtime).
+- **`extra_packages.sh`** — installs `config_params.extra_packages`, accepted either as a JSON array or a space-separated string; a missing/null/empty value installs nothing. Names are split into a bash array before `dnf` so a package name is never glob-expanded.
+- **`install_yq.sh`** — installs Go (if `rpm -q golang` fails) then `github.com/mikefarah/yq/v4` pinned to `YQ_VERSION` (currently `v4.53.3`) into `/usr/local/bin` via `go install`, which checks the module against the Go checksum database. The pin exists because `@latest` made each image build pick a different yq; bump the version variable to upgrade. EPEL has no yq for Rocky 8, so `go install` is used on both major versions. `tests/test_install_yq.py` covers the pin.
 - **`ansible-playbooks/`-style payloads**: `post-boot/ansible-playbooks/nvidia-fm-install.yaml` is an example playbook consumed by the runner (see [Post-Boot Scripts](post-boot.md#slurm-and-gpu-configuration)).
+
+`image-gen/set_root_pw.sh` and `image-gen/setup_ssh.sh` were removed; configure the root password and authorized SSH keys through the OS distro's Root Password and Root SSH Keys, which the jobserver applies at image build.
 
 ## Key source files
 
-`image-gen/install_mprov_jobserver.sh`, `image-gen/install_mprov_script-runner.sh`, `image-gen/setup_data_share_mount.sh`, `image-gen/run_ansible.sh`, `image-gen/set_root_pw.sh`, `image-gen/setup_ssh.sh`, `image-gen/extra_packages.sh`, `image-gen/install_yq.sh`, `mpcc_scripts.yaml`.
+`image-gen/install_mprov_jobserver.sh`, `image-gen/install_mprov_script-runner.sh`, `image-gen/setup_data_share_mount.sh`, `image-gen/run_ansible.sh`, `image-gen/extra_packages.sh`, `image-gen/install_yq.sh`, `mpcc_scripts.yaml`.
 
 ## Changing this area
 

@@ -15,7 +15,7 @@ Scripts are organized by **where they run** in the provisioning lifecycle. See [
 
 | Directory | Runs where / when | Purpose |
 |---|---|---|
-| [`image-gen/`](script-types/image-generation.md) | During OS image generation inside the mPCC image builder | Install the mProv jobserver + script-runner, mount NFS shares, set root password/SSH, create Slurm/Munge client services, run Ansible |
+| [`image-gen/`](script-types/image-generation.md) | During OS image generation inside the mPCC image builder | Install the mProv jobserver + script-runner, mount the `/data` NFS share, install extra packages/yq, run Ansible |
 | [`post-boot/`](script-types/post-boot.md) | On the node after first boot, dispatched by the script-runner jobserver | BMC setup, local disk formatting, IPv6 link-local registration, Slurm GPU gres, CUDA, kernel mitigations, time sync |
 | [`tools/`](operations/admin-tools.md) | Admin command line against a running mPCC | Bulk-create systems/switch ports (`mash`), CSV import, DB backup, image capture |
 | `mpcc_scripts.yaml` | Uploaded/imported into mPCC | Django fixture (`scripts.script`) registering selected scripts into the mPCC database |
@@ -35,11 +35,11 @@ Scripts are organized by **where they run** in the provisioning lifecycle. See [
 
 ## Change guidance
 
-- Scripts run as root with no interactive input; anything they need must come from `entity.json` / `config_params` or the mPCC REST API. An unset or `null` config param must take the script's documented default, never the string `null` — `tests/` enforces this (`python -m pytest tests`, requires Docker). Hardcoded hostnames (e.g. `gpfs_mmsdrrestore.sh`) are environment-specific one-offs.
-- Adding a script that mPCC should dispatch means also registering it (direct upload or a new entry in `mpcc_scripts.yaml` with the right `scriptType`).
-- Two scripts are explicitly deprecated (`post-boot/nads.sh`, `post-boot/NetworkManager-1.40-COPR.sh`) — they `exit 0` early; don't revive them without checking git history.
+- Scripts run as root with no interactive input; anything they need must come from `entity.json` / `config_params` or the mPCC REST API. An unset or `null` config param must take the script's documented default, never the string `null` — `tests/` enforces this (`python -m pytest tests`, requires Docker).
+- Adding a script that mPCC should dispatch means also registering it (direct upload or a new entry in `mpcc_scripts.yaml` with the right `scriptType`); `tests/test_manifest.py` checks the manifest against the repo (every `filename` exists, `pk` equals `slug`, `scriptType` matches the directory).
+- Site-specific one-offs get removed from this repo, not deprecated in place — `gpfs_mmsdrrestore.sh`, `nads.sh`, `NetworkManager-1.40-COPR.sh`, `set_root_pw.sh` and `setup_ssh.sh` were all deleted; check git history before reviving any of them.
+- Shell changes are gated by `.github/workflows/lint.yml` (`bash -n` plus `shellcheck -S error` over every tracked `*.sh`; `.mash` files are excluded), alongside the pytest suite in `tests/`.
 
 ## Backlog
 
-- gpfs_mmsdrrestore.sh — environment-specific GPFS restore one-liner (hardcoded `mgmt03.ib.cluster`); documented only as a caveat in the post-boot page.
 - LICENSE — AGPL-style license text present at repo root; not expanded in the wiki.
