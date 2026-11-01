@@ -15,6 +15,13 @@ import sh
 # - build the file system(s)
 # - update the /etc/fstab
 
+# mprov-ng/mprov_control_center#452: sent as the mProv-Version header, for
+# mPCC-side visibility/logging only.  Keep in sync with the repo-root VERSION
+# file; these scripts are copied standalone into each mPCC's Scripts
+# catalogue, so there's no build step to pull the version from VERSION at
+# runtime.
+MPROV_SCRIPTS_VERSION = "0.1"
+
 class mProvStatelessDiskFormatter():
   config_data = {}
   mprovURL = "http://127.0.0.1:8080/"
@@ -108,7 +115,8 @@ class mProvStatelessDiskFormatter():
     
     self.session.headers.update({
       'Authorization': 'Api-Key ' + self.apikey,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'mProv-Version': MPROV_SCRIPTS_VERSION,
       })
 
     # connect to the mPCC

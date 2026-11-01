@@ -5,8 +5,17 @@ import yaml, json
 import os, sys, time, socket, requests, sh
 from mprov_jobserver.script import MProvScript
 
+# mprov-ng/mprov_control_center#452: sent as the mProv-Version header once
+# mprov_jobserver's MProvScript grows a script_version hook (visibility/
+# logging only, no enforcement). Keep in sync with the repo-root VERSION
+# file; these scripts are copied standalone into each mPCC's Scripts
+# catalogue, so there's no build step to pull the version from VERSION at
+# runtime.
+MPROV_SCRIPTS_VERSION = "0.1"
+
 
 class MScript(MProvScript):
+  script_version = MPROV_SCRIPTS_VERSION
 
   def __init__(self, **kwargs):
     print("Setting Up BMC")
