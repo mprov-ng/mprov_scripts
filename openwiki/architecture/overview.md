@@ -41,7 +41,7 @@ Scripts treat a missing or `null` config param as unset — via `jq` guards like
 
 ## Python post-boot scripts (MProvScript)
 
-Three post-boot scripts are Python classes subclassing `MProvScript` from the `mprov_jobserver.script` package (`setupBMC.py`, `register_IPv6_ll.py`; `localTempDisk.py` predates this and reimplements config/session loading — it reads `entity.json` next to the script when the script runner provides it, falling back to `/etc/mprov/script-runner.yaml` then `/etc/mprov/jobserver.yaml` for manual runs). The base class provides `self.session` (an authenticated `requests.Session`) and `self.mprovURL`, so scripts query the mPCC REST API directly, e.g. `GET {mprovURL}systems/?hostname=...` in `setupBMC.py`.
+Three post-boot scripts are Python classes subclassing `MProvScript` from the `mprov_jobserver.script` package (`setupBMC.py`, `register_IPv6_ll.py`; `localTempDisk.py` predates this and reimplements config/session loading — it reads `entity.json` next to the script when the script runner provides it, falling back to `/etc/mprov/script-runner.yaml` then `/etc/mprov/jobserver.yaml` for manual runs). The base class provides `self.session` (an authenticated `requests.Session`) and `self.mprovURL`, so scripts query the mPCC REST API directly, e.g. `GET {mprovURL}systems/?hostname=...` in `setupBMC.py`. All three Python scripts also report their version to the mPCC via an `mProv-Version` header (mprov-ng/mprov_control_center#452 — visibility/logging only, no enforcement), sourced from a repo-root `VERSION` file that each script hardcodes a copy of; see [Post-Boot Scripts](../script-types/post-boot.md) for the sync rule and per-script plumbing.
 
 ## Shared NFS layout
 
