@@ -18,12 +18,14 @@ fi
 # get some initial variables.
 mprovURL=`jq -r '.mprovURL // empty' "$ENTITY"`
 apikey=`jq -r '.apikey // empty' "$ENTITY"`
-if [ -z "$mprovURL" ] || [ -z "$apikey" ]
+entityName=`jq -r .slug "$ENTITY"`
+# the job server deliberately sends an empty apikey for the public "nads"
+# image (#84): only require one for everything else.
+if [ -z "$mprovURL" ] || { [ -z "$apikey" ] && [ "$entityName" != "nads" ]; }
 then
   echo "Error: mprovURL or apikey missing from $ENTITY" >&2
   exit 1
 fi
-entityName=`jq -r .slug "$ENTITY"`
 echo "Entity Name: $entityName"
 if [ "$entityName" == "nads" ]
 then
