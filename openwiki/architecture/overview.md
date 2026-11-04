@@ -32,7 +32,7 @@ When the jobserver runs a script, it stages the invocation in `/tmp/mprov/` with
 | Field | Used by | Meaning |
 |---|---|---|
 | `mprovURL` | nearly every script, NFS mounts | Base URL of the mPCC API; the host part is also the default NFS server for `/export/data` |
-| `apikey` | jobserver configs, Python scripts | API credential for the mPCC |
+| `apikey` | jobserver configs, Python scripts | API credential for the mPCC; the public `nads` image deliberately sends it empty, so `install_mprov_script-runner.sh` only requires it for other entities |
 | `config_params` | extra_packages, slurm_enable_gpus, setup_data_share_mount | Free-form per-entity JSON: `extra_packages`, `gpus` (count or `type:count`, e.g. `a100:4`), `mprovDataShareHost`, Ansible variables |
 | `config` | run_ansible.sh | Merged Ansible collection/role/playbook slugs served by mPCCs with config inheritance (mprov-ng/mprov_control_center#269); `run_ansible.sh` falls back to the per-entity ansible lists when absent |
 | `slug` | run_ansible.sh, install_mprov_script-runner.sh | Image slug when running in image-gen mode; `nads` selects the NADS module |
