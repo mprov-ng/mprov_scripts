@@ -74,27 +74,44 @@ class MScript(MProvScript):
       return False
     return True
 
+  def _lookup_bmc_by_hostname(self):
+    """
+    The two-call lookup used before mPCC #316/#441 added ?self: find our
+    system by hostname, then its BMC by system id.  Kept as a fallback for
+    mPCCs older than #390, which reject the unknown ?self query key with a
+    400.
+    """
+    response = self.session.get(f"{self.mprovURL}systems/?hostname={socket.gethostname()}")
+    if response.status_code != 200:
+      print(f"Error: Unable to determine our ID from {socket.gethostname()}", file=sys.stderr)
+      sys.exit(1)
+    try:
+      found=False
+      for system in response.json():
+        if system['hostname'] == socket.gethostname():
+          found=True
+          break
+    except Exception as e:
+      print(f"Error: Unable to parse mPCC response. {e}", file=sys.stderr)
+      sys.exit(1)
+    if found != True:
+      print("Error: unable to find host in mPCC.", file=sys.stderr)
+      sys.exit(1)
+    return self.session.get(f"{self.mprovURL}systembmcs/?system={system['id']}&detail")
+
   def run(self):
 
       print("Attempting to get our BMC info from the MPCC...")
-      response = self.session.get(f"{self.mprovURL}systems/?hostname={socket.gethostname()}")
-      if response.status_code != 200:
-        print(f"Error: Unable to determine our ID from {socket.gethostname()}", file=sys.stderr)
-        sys.exit(1)
-      try:
-        found=False
-        for system in response.json():
-          if system['hostname'] == socket.gethostname():
-            found=True
-            break
-      except Exception as e:
-        print(f"Error: Unable to parse mPCC response. {e}", file=sys.stderr)
-        sys.exit(1)
-      if found != True:
+      response = self.session.get(f"{self.mprovURL}systembmcs/?self&detail")
+      if response.status_code == 400:
+        # older mPCC, pre-#390/#441: ?self isn't a recognized query key there.
+        response = self._lookup_bmc_by_hostname()
+      elif response.status_code == 404:
+        # ?self: no network interface in the mPCC has our address (#316/#320),
+        # the same outcome as not finding ourselves on the old lookup path.
         print("Error: unable to find host in mPCC.", file=sys.stderr)
         sys.exit(1)
 
-      response = self.session.get(f"{self.mprovURL}systembmcs/?system={system['id']}&detail")
       if response.status_code == 200:
         bmc = {}
         # we got a bmc object, let's load it.
