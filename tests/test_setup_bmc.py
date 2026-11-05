@@ -37,6 +37,8 @@ class Session:
     self.patches = []
 
   def get(self, url):
+    if url == f"{URL}systembmcs/?self&detail":
+      return Response(self.bmcs_status, self.bmcs)
     if url == f"{URL}systems/?hostname=node01":
       return Response(200, [{"id": 7, "hostname": "node01"}])
     if url == f"{URL}systembmcs/?system=7&detail":
@@ -199,9 +201,38 @@ def test_failed_mac_registration_fails_the_script(script, capsys):
   assert 'Error updating bmc mac, 400: {"mac": ["bad"]}' in capsys.readouterr().err
 
 
+def test_self_detail_400_falls_back_to_hostname_lookup(script):
+  # pre-#390/#441 mPCCs reject the unknown ?self query key with a 400.
+  real_get = script.session.get
+  def get(url):
+    if url == f"{URL}systembmcs/?self&detail":
+      return Response(400, {})
+    return real_get(url)
+  script.session.get = get
+  assert script.run() == 0
+  assert script.session.patches == [(f"{URL}systembmcs/3/", {
+    "id": 3, "mac": "aa:bb:cc:dd:ee:ff", "ipv6ll": "fe80::A8bb:ccff:fedd:eeff"})]
+
+
+def test_self_detail_404_exits_instead_of_falling_back(script, capsys):
+  # ?self: no network interface in the mPCC has our address (#316/#320).
+  script.session.get = lambda url: Response(404, {})
+  with pytest.raises(SystemExit) as exit:
+    script.run()
+  assert exit.value.code == 1
+  assert "unable to find host in mPCC" in capsys.readouterr().err
+
+
 def test_unparsable_systems_reply_shows_the_error(script, capsys):
-  # the message printed a literal '{e}' (#45).
-  script.session.get = lambda url: types.SimpleNamespace(status_code=200, json=lambda: None)
+  # the message printed a literal '{e}' (#45). Exercised via the pre-#390
+  # fallback, since the ?self&detail path has no systems/?hostname call.
+  def get(url):
+    if url == f"{URL}systembmcs/?self&detail":
+      return Response(400, {})
+    if url == f"{URL}systems/?hostname=node01":
+      return types.SimpleNamespace(status_code=200, json=lambda: None)
+    raise AssertionError(f"unexpected GET {url}")
+  script.session.get = get
   with pytest.raises(SystemExit) as exit:
     script.run()
   assert exit.value.code == 1
