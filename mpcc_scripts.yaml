@@ -82,3 +82,10 @@
     name: Install chrony and sync the clock once.
     filename: post-boot/install_chrony_and_timesync.sh
     scriptType: post-boot
+- model: scripts.script
+  pk: report_booted_py
+  fields: 
+    slug: report_booted_py
+    name: Report booted to the mPCC (time-to-provision; make it depend on the others).
+    filename: post-boot/report_booted.py
+    scriptType: post-boot
