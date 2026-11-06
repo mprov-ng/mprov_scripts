@@ -1,10 +1,10 @@
 #!/bin/sh
-''''true; p=/usr/lib/mprov/bin/python3; [ -x "$p" ] || p=/usr/bin/python3; exec "$p" "$0" "$@" #'''
-# The two lines above pick the interpreter (#86): sh runs line 2, which execs
-# the job server's bundled python (/usr/lib/mprov/bin/python3, in images built
-# by mprov_jobserver 0.7.0 and later) if it's there, or else the system
-# /usr/bin/python3 (images built by 0.6.x).  Python reads line 2 as a plain
-# string and skips it.  Keep both lines exactly as they are.
+''''true; p=/usr/libexec/mprov/bin/python3; [ -x "$p" ] || p=/usr/bin/python3; exec "$p" "$0" "$@" #'''
+# The two lines above pick the interpreter (#86, #89): sh runs line 2, which
+# execs the job server's bundled python (/usr/libexec/mprov/bin/python3, in
+# images built by mprov_jobserver 0.7.0 and later) if it's there, or else the
+# system /usr/bin/python3 (images built by 0.6.x).  Python reads line 2 as a
+# plain string and skips it.  Keep both lines exactly as they are.
 
 # Script Type: post-boot
 
