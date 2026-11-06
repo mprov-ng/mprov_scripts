@@ -14,7 +14,8 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 IMAGE = "mprov-scripts-test"
-SCRIPTS = ["setupBMC.py", "register_IPv6_ll.py", "localTempDisk.py"]
+SCRIPTS = ["setupBMC.py", "register_IPv6_ll.py", "localTempDisk.py",
+           "report_booted.py"]
 BUNDLE = "/usr/libexec/mprov/bin/python3"
 SYSTEM = "/usr/bin/python3"
 
