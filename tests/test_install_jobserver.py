@@ -1,4 +1,5 @@
-"""install_mprov_jobserver.sh copies the jobserver's default plugin configs (#42).
+"""install_mprov_jobserver.sh copies the jobserver's default plugin configs (#42),
+from the bundled job server when the image has one (#87).
 
 The copy used a hardcoded python3.8 site-packages path, so on Rocky 9 (python
 3.9) nothing was copied, the script still succeeded, and the secondary
@@ -108,3 +109,73 @@ def test_logs_the_installed_jobserver_version():
   code, err, out = run(INSTALL_STANDIN, "grep '^mprov_jobserver version' /tmp/stdout")
   assert code == 0, err
   assert out.strip() == "mprov_jobserver version: 0.0.0"
+
+
+# A job server from 0.7.0 on puts itself into the image as a bundle with its
+# own Python at /usr/libexec/mprov before this script runs (mprov_jobserver
+# #309).  The script must use that one, not system pip, which can't install
+# 0.7.0 and would pull an old 0.6.x instead (#87).  The stand-in bundle is a
+# venv at that path, so the package lands where the real bundle has it
+# (/usr/libexec/mprov/lib/python3.*/site-packages), and a stub pip3 earlier in
+# PATH records any call.
+BUNDLE_WEBSERVER_YAML = "- mprov-webserver:\n    rootDir: '/bundle/'\n"
+
+INSTALL_BUNDLE = f"""
+  python3 -m venv /usr/libexec/mprov >/dev/null 2>&1 || echo "bundle venv failed" >&2
+  mkdir -p /tmp/bpkg/mprov_jobserver/plugins
+  touch /tmp/bpkg/mprov_jobserver/__init__.py /tmp/bpkg/mprov_jobserver/plugins/__init__.py
+  printf %s {shlex.quote(BUNDLE_WEBSERVER_YAML)} > /tmp/bpkg/mprov_jobserver/plugins/mprov-webserver.yaml
+  echo "- image-sync: {{}}" > /tmp/bpkg/mprov_jobserver/plugins/image-sync.yaml
+  cat > /tmp/bpkg/setup.py <<'EOF'
+from setuptools import setup
+setup(name='mprov_jobserver', version='0.7.0', packages=['mprov_jobserver', 'mprov_jobserver.plugins'],
+      package_data={{'mprov_jobserver.plugins': ['*.yaml']}})
+EOF
+  /usr/libexec/mprov/bin/python3 -m pip install -q --no-index --no-build-isolation /tmp/bpkg >/dev/null 2>&1 \\
+    || echo "bundle stand-in install failed" >&2
+"""
+
+STUB_PIP = """
+  mkdir -p /tmp/stub
+  printf '#!/bin/sh\\necho "pip3 $*" >> /tmp/pip3-calls\\nexit 1\\n' > /tmp/stub/pip3
+  chmod 755 /tmp/stub/pip3
+  export PATH=/tmp/stub:$PATH
+"""
+
+
+def test_uses_the_bundled_jobserver_without_system_pip():
+  check = """
+    ls /usr/libexec/mprov/lib/python3*/site-packages/mprov_jobserver/plugins/*.yaml >/dev/null && echo "layout=ok"
+    echo "pip3 calls: $(cat /tmp/pip3-calls 2>/dev/null)"
+    grep -e '^mprov_jobserver version' -e '^Using the job server bundled' /tmp/stdout
+    ls /etc/mprov/plugins
+    echo "#"; cat /etc/mprov/plugins/mprov-webserver.yaml
+  """
+  code, err, out = run(INSTALL_BUNDLE + STUB_PIP, check)
+  assert code == 0, err
+  head, webserver = out.split("#\n")
+  lines = head.splitlines()
+  assert lines[0] == "layout=ok"
+  assert lines[1] == "pip3 calls: "
+  assert lines[2] == "Using the job server bundled in the image (/usr/libexec/mprov/bin/python3)."
+  assert lines[3] == "mprov_jobserver version: 0.7.0"
+  assert lines[4:] == ["image-sync.yaml", "mprov-webserver.yaml"]
+  assert webserver == BUNDLE_WEBSERVER_YAML
+
+
+def test_prefers_the_bundle_over_a_system_pip_install():
+  # an image rebuilt from a 0.6-era base may still carry the old one
+  code, err, out = run(INSTALL_STANDIN + INSTALL_BUNDLE,
+                       "grep '^mprov_jobserver version' /tmp/stdout; cat /etc/mprov/plugins/mprov-webserver.yaml")
+  assert code == 0, err
+  version, webserver = out.split("\n", 1)
+  assert version == "mprov_jobserver version: 0.7.0"
+  assert webserver == BUNDLE_WEBSERVER_YAML
+
+
+def test_fails_when_the_bundle_has_no_jobserver():
+  setup = "python3 -m venv --without-pip /usr/libexec/mprov" + STUB_PIP
+  code, err, out = run(setup, "echo \"pip3 calls: $(cat /tmp/pip3-calls 2>/dev/null)\"; ls /etc/mprov/plugins")
+  assert code == 1
+  assert "unable to find the mprov_jobserver plugin configs" in err
+  assert out == "pip3 calls: \n"
