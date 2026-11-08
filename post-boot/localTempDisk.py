@@ -14,6 +14,8 @@ import parted
 import traceback
 import requests
 import sh
+import subprocess
+from urllib.parse import urlsplit, urlunsplit
 
 # This scirpt will:
 # - grab the disklayout from the mPCC, 
@@ -28,10 +30,26 @@ import sh
 # runtime.
 MPROV_SCRIPTS_VERSION = "0.6"
 
+def https_url(url):
+  """ The mPCC's HTTPS URL for its plain-HTTP one: same host, port 443 (as
+  the mPCC's mprov_enroll.py and the job server do). """
+  parts = urlsplit(url)
+  host = parts.hostname or ""
+  if ":" in host:
+    host = f"[{host}]"
+  return urlunsplit(("https", host, parts.path or "/", "", ""))
+
+
 class mProvStatelessDiskFormatter():
   config_data = {}
   mprovURL = "http://127.0.0.1:8080/"
   apikey = ""
+  # the CA to verify the mPCC with (the image's copy of it, #98)
+  caBundle = None
+  # where a node keeps its own certificate (mprov_control_center#381)
+  nodeTlsDir = "/etc/mprov/tls"
+  # (cert, key, ca) when talking to the mPCC by certificate, not API key
+  tls = None
   heartbeatInterval = 10
   runonce = True
   sessionOk = False
@@ -85,19 +103,44 @@ class mProvStatelessDiskFormatter():
       for config_entry in ("mprovURL", "apikey"):
         if entity.get(config_entry):
           setattr(self, config_entry, entity[config_entry])
+      # a runner on the node's own certificate hands it over (#98); without
+      # one, verify the mPCC with the CA the image carries.
+      tls = entity.get("tls")
+      if isinstance(tls, dict) and tls.get("cert") and tls.get("key"):
+        self.tls = (tls["cert"], tls["key"], tls.get("ca"))
+      else:
+        self.caBundle = self._readConfig().get("caBundle")
       return
 
     # otherwise load the config yaml
-    yaml.add_constructor("!include", self.yaml_include)
-
-    for configfile in self.configfiles:
-      if os.path.isfile(configfile) and os.access(configfile, os.R_OK):
-        self.configfile = configfile
-        break
-    else:
+    if self.configfile is None:
       print(f"Error: Unable to find a working config file: no {self.entityfile} and none of {', '.join(self.configfiles)}.")
       sys.exit(1)
 
+    # map the global config on to our object
+    config = self._readConfig()
+    for config_entry in config.keys():
+      try:
+        getattr(self, config_entry)
+        setattr(self, config_entry, config[config_entry])
+      except:
+        # ignore unused keys
+        pass
+    self._useNodeCert()
+
+  @property
+  def configfile(self):
+    ''' The first readable config file, or None. '''
+    for configfile in self.configfiles:
+      if os.path.isfile(configfile) and os.access(configfile, os.R_OK):
+        return configfile
+    return None
+
+  def _readConfig(self):
+    ''' The global section of the config file, or {} without one. '''
+    if self.configfile is None:
+      return {}
+    yaml.add_constructor("!include", self.yaml_include)
     with open(self.configfile, "r") as yamlfile:
       self.config_data = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
@@ -106,24 +149,52 @@ class mProvStatelessDiskFormatter():
     for entry in self.config_data:
       result.update(entry)
     self.config_data = result
+    return self.config_data.get('global') or {}
 
-    # map the global config on to our object
-    for config_entry in self.config_data['global'].keys():
-      try:
-        getattr(self, config_entry)
-        setattr(self, config_entry, self.config_data['global'][config_entry])
-      except:
-        # ignore unused keys
-        pass
-    pass
+  def _certExpired(self, cert):
+    ''' Whether cert has expired (openssl x509 -checkend 0); False if
+    openssl can't tell. '''
+    try:
+      result = subprocess.run(["openssl", "x509", "-noout", "-checkend", "0", "-in", cert],
+                              capture_output=True)
+    except OSError:
+      return False
+    return result.returncode != 0
+
+  def _useNodeCert(self):
+    '''
+    Run by hand on a node with its own certificate (#98): use it, over
+    https to the same host, as the job server's MProvScript does.
+    '''
+    cert, key, ca = (os.path.join(self.nodeTlsDir, name) for name in ("node.crt", "node.key", "ca.crt"))
+    if not all(os.path.isfile(path) for path in (cert, key, ca)):
+      return
+    if self._certExpired(cert):
+      print(f"The node certificate in {self.nodeTlsDir} has expired; using the API key instead.", file=sys.stderr)
+      return
+    self.tls = (cert, key, self.caBundle or ca)
+    self.mprovURL = https_url(self.mprovURL)
 
   def startSession(self):
     
     self.session.headers.update({
-      'Authorization': 'Api-Key ' + self.apikey,
       'Content-Type': 'application/json',
       'mProv-Version': MPROV_SCRIPTS_VERSION,
       })
+    if self.tls:
+      # by certificate (#98): no API key at all
+      cert, key, ca = self.tls
+      self.session.cert = (cert, key)
+      if ca:
+        self.session.verify = ca
+      self.session.headers.pop('Authorization', None)
+    else:
+      if self.caBundle:
+        self.session.verify = self.caBundle
+      if self.apikey:
+        self.session.headers['Authorization'] = 'Api-Key ' + self.apikey
+      else:
+        self.session.headers.pop('Authorization', None)
 
     # connect to the mPCC
     try:
