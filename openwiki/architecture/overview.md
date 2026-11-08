@@ -1,8 +1,8 @@
 ---
 type: Reference
 title: mProv Script Execution Architecture
-description: How mprov_scripts fits into the mProv Control Center ecosystem — script types (image-gen vs post-boot), the mprov_jobserver and its script-runner/NADS/image-sync plugins, the /tmp/mprov/entity.json contract with null-safe config_params defaults (tested by the tests/ pytest suite), Python MProvScript classes, and the /data NFS share mount.
-tags: [mprov, macc, jobserver, architecture, provisioning, entity-json]
+description: "How mprov_scripts fits into the mProv Control Center ecosystem — script types (image-gen vs post-boot), the mprov_jobserver and its script-runner/NADS/image-sync plugins, the /tmp/mprov/entity.json contract with null-safe config_params defaults and the optional tls certificate object for certificate-authenticated builds and nodes (tested by the tests/ pytest suite), Python MProvScript classes, and the /data NFS share mount."
+tags: [mprov, macc, jobserver, architecture, provisioning, entity-json, tls, certificates]
 ---
 
 # Architecture Overview
@@ -32,7 +32,8 @@ When the jobserver runs a script, it stages the invocation in `/tmp/mprov/` with
 | Field | Used by | Meaning |
 |---|---|---|
 | `mprovURL` | nearly every script, NFS mounts | Base URL of the mPCC API; the host part is also the default NFS server for `/export/data` |
-| `apikey` | jobserver configs, Python scripts | API credential for the mPCC; the public `nads` image deliberately sends it empty, so `install_mprov_script-runner.sh` only requires it for other entities |
+| `apikey` | jobserver configs, Python scripts | API credential for the mPCC; the public `nads` image deliberately sends it empty, and a job server building with its own certificate sends it empty for every image (see the `tls` row), so `install_mprov_script-runner.sh` only requires it otherwise |
+| `tls` | install_mprov_jobserver.sh, install_mprov_script-runner.sh, localTempDisk.py, install_mprov_cert_renew.sh | Optional certificate object (mprov-ng/mprov_control_center#381). During a certificate-authenticated image build it carries a 2-hour build credential (`cert`, `key`, deleted by the job server before packing) plus the mPCC's CA (`ca`); on a node with its own certificate the runner points `tls` at `/etc/mprov/tls`. In cert mode the install scripts write no apikey, copy only `tls.ca` into the image as `/etc/mprov/mpcc-ca.crt` (`caBundle`), store the mPCC's plain-HTTP URL as `mprovURL`, and never let `tls.cert`/`tls.key` reach the image — see [Image Generation Scripts](../script-types/image-generation.md#mprov-jobserver-installs) |
 | `config_params` | extra_packages, slurm_enable_gpus, setup_data_share_mount | Free-form per-entity JSON: `extra_packages`, `gpus` (count or `type:count`, e.g. `a100:4`), `mprovDataShareHost`, Ansible variables |
 | `config` | run_ansible.sh | Merged Ansible collection/role/playbook slugs served by mPCCs with config inheritance (mprov-ng/mprov_control_center#269); `run_ansible.sh` falls back to the per-entity ansible lists when absent |
 | `slug` | run_ansible.sh, install_mprov_script-runner.sh | Image slug when running in image-gen mode; `nads` selects the NADS module |
