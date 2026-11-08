@@ -4,8 +4,9 @@ server that builds by certificate (#98, mprov_control_center#381).
 Then entity.json has apikey "", an https mprovURL and tls {cert, key, ca}:
 cert and key are a build-only credential that must never reach the image,
 ca is the mPCC's CA certificate, which goes in as /etc/mprov/mpcc-ca.crt with
-caBundle pointing at it.  Without tls, the scripts write the API key as
-before.
+caBundle pointing at it, and the image gets the mPCC's plain-HTTP URL (a
+fresh node can't verify the mPCC before it enrolls).  Without tls, the
+scripts write the API key and URL as before.
 
 Each case runs the script in a container built from tests/Dockerfile with no
 network.  install_mprov_jobserver.sh gets the stand-in mprov_jobserver
@@ -80,11 +81,46 @@ def test_by_certificate_writes_no_key_and_the_ca(script):
   code, err, out = run(script, entity, config(script) + LEAK_CHECK)
   assert code == 0, err
   conf, ca, leaks = out.split("#\n")
-  assert f'mprovURL: "{URL}"' in conf
+  # the image gets the plain-HTTP URL: a fresh node can't verify the
+  # mPCC before it has enrolled
+  assert f'mprovURL: "{URL.replace("https://", "http://", 1)}"' in conf
+  assert "https://" not in conf
   assert "apikey" not in conf
   assert "caBundle: '/etc/mprov/mpcc-ca.crt'" in conf
   assert ca == CA + "644\n"
   assert leaks.strip() == ""
+
+
+@pytest.mark.parametrize("script", [RUNNER, JOBSERVER], ids=["script-runner", "jobserver"])
+@pytest.mark.parametrize("url, expected", [
+  ("https://192.168.250.1/", "http://192.168.250.1/"),
+  ("https://192.168.250.1", "http://192.168.250.1/"),
+  ("https://mpcc.example:8443/mprov/?x=1", "http://mpcc.example/mprov/"),
+  ("https://[fd00::1]:443/", "http://[fd00::1]/"),
+  ("http://mpcc.example:8080/", "http://mpcc.example:8080/"),
+])
+def test_by_certificate_writes_the_plain_http_url(script, url, expected):
+  entity = {"mprovURL": url, "apikey": "", "slug": "compute", "tls": TLS}
+  code, err, out = run(script, entity, config(script))
+  assert code == 0, err
+  assert f'    mprovURL: "{expected}"\n' in out
+
+
+def test_nads_by_certificate_writes_the_plain_http_url():
+  entity = {"mprovURL": "https://192.168.250.1/", "apikey": "", "slug": "nads", "tls": TLS}
+  code, err, out = run(RUNNER, entity, "cat /etc/mprov/nads.yaml")
+  assert code == 0, err
+  assert '    mprovURL: "http://192.168.250.1/"\n' in out
+  assert "caBundle: '/etc/mprov/mpcc-ca.crt'" in out
+
+
+@pytest.mark.parametrize("script", [RUNNER, JOBSERVER], ids=["script-runner", "jobserver"])
+def test_with_the_shared_key_an_https_url_is_kept(script):
+  # key mode is unchanged, whatever the URL
+  entity = {"mprovURL": "https://mpcc.example/", "apikey": "the-key", "slug": "compute"}
+  code, err, out = run(script, entity, config(script))
+  assert code == 0, err
+  assert '    mprovURL: "https://mpcc.example/"\n' in out
 
 
 @pytest.mark.parametrize("script", [RUNNER, JOBSERVER], ids=["script-runner", "jobserver"])

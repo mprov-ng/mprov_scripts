@@ -14,15 +14,39 @@ then
   exit 1
 fi
 
+# The mPCC's plain-HTTP URL for its https one: same host (an IPv6 address
+# stays in brackets), port 80, same path, no query.  The mirror of the
+# https_url() rule the job server, localTempDisk.py and the mPCC's
+# mprov_enroll.py use to move to https once a node has its own certificate.
+# An http:// URL is returned as it is.
+http_url() {
+  case "$1" in
+    https://*) ;;
+    *) printf '%s\n' "$1"; return ;;
+  esac
+  local rest authority path host
+  rest=${1#https://}
+  authority=${rest%%[/?#]*}
+  path=${rest#"$authority"}
+  path=${path%%[?#]*}
+  [ -n "$path" ] || path=/
+  authority=${authority##*@}
+  case "$authority" in
+    \[*\]*) host="${authority%%]*}]" ;;
+    *) host=${authority%%:*} ;;
+  esac
+  printf 'http://%s%s\n' "$host" "$path"
+}
+
 # get some initial variables.
 mprovURL=`jq -r '.mprovURL // empty' "$ENTITY"`
 apikey=`jq -r '.apikey // empty' "$ENTITY"`
 # A job server building with its own certificate (mprov_control_center#381)
 # hands over no API key, the mPCC's https URL and a "tls" object: a 2-hour
 # build credential (cert, key) that it deletes before packing, and the
-# mPCC's CA certificate (ca).  Only the CA goes into the image, so nodes
-# without a certificate of their own (N.A.D.S., failed enrollment) can still
-# verify the mPCC; a node with one finds it in /etc/mprov/tls by itself.
+# mPCC's CA certificate (ca).  The image gets the mPCC's plain-HTTP URL
+# (below) and the CA, as caBundle, for clients that move to https; a node
+# with a certificate of its own finds it in /etc/mprov/tls by itself.
 # Never copy tls.cert or tls.key into the image.
 tlsMode=$(jq -r 'if (.tls | type) == "object" then "yes" else empty end' "$ENTITY")
 tlsCA=$(jq -r '.tls.ca // empty' "$ENTITY")
@@ -64,6 +88,12 @@ echo "mprov_jobserver version: $jsVersion"
 mkdir -p /etc/mprov/plugins
 if [ -n "$tlsMode" ]
 then
+  # The image gets the mPCC's plain-HTTP URL, not the https one the build
+  # uses.  A fresh node can't verify the mPCC before it has enrolled
+  # (genNetworkInterfaces.py fetches the CA from <mprovURL>/enroll/ca.crt),
+  # and a node with no certificate at all (N.A.D.S.) never can.  Every node
+  # client moves to https by itself once it has a certificate.
+  mprovURL=$(http_url "$mprovURL")
   authConfig=""
   if [ -n "$tlsCA" ]
   then
