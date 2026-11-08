@@ -13,6 +13,13 @@
     filename: image-gen/install_mprov_jobserver.sh
     scriptType: image-gen
 - model: scripts.script
+  pk: install_mprov_cert_renew_sh
+  fields: 
+    slug: install_mprov_cert_renew_sh
+    name: Install the timer that renews each node's mProv certificate (0.7.0+).
+    filename: image-gen/install_mprov_cert_renew.sh
+    scriptType: image-gen
+- model: scripts.script
   pk: extra_packages_sh
   fields: 
     slug: extra_packages_sh
