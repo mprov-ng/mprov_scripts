@@ -7,8 +7,12 @@
 # certificate in /etc/mprov/tls (mprov_control_center#381).  This puts the
 # mPCC's helper for it, mprov_enroll.py, at /usr/libexec/mprov/ and a systemd
 # timer that runs "mprov_enroll.py renew" 5 minutes after boot and then about
-# daily.  renew does nothing (and exits 0) on a node without a certificate,
-# and renews one in its last 14 days.
+# daily.  renew does nothing (and exits 0) on a node without a certificate.
+# Otherwise it asks the mPCC each time: the mPCC renews the certificate in
+# its renewal window, and if it revoked the certificate the node re-enrolls
+# through the window an admin opened for it ("Let these systems re-enroll").
+# The helper comes from the mPCC, so an older mPCC's copy only renews a
+# certificate in its last 14 days and doesn't notice a revocation.
 #
 # The timer never holds up the boot: nothing waits for the service, and a
 # failed renewal is only logged (journalctl -u mprov-cert-renew).
