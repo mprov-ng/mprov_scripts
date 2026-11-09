@@ -25,7 +25,7 @@ import platform, sys, json
 # file; these scripts are copied standalone into each mPCC's Scripts
 # catalogue, so there's no build step to pull the version from VERSION at
 # runtime.
-MPROV_SCRIPTS_VERSION = "0.6"
+MPROV_SCRIPTS_VERSION = "0.7"
 
 class MScript(MProvScript):
   script_version = MPROV_SCRIPTS_VERSION

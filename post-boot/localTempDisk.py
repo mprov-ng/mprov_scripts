@@ -28,7 +28,7 @@ from urllib.parse import urlsplit, urlunsplit
 # file; these scripts are copied standalone into each mPCC's Scripts
 # catalogue, so there's no build step to pull the version from VERSION at
 # runtime.
-MPROV_SCRIPTS_VERSION = "0.6"
+MPROV_SCRIPTS_VERSION = "0.7"
 
 def https_url(url):
   """ The mPCC's HTTPS URL for its plain-HTTP one: same host, port 443 (as
