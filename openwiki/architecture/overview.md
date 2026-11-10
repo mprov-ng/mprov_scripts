@@ -55,8 +55,3 @@ The former `/export/mprov` → `/opt/mprov` mount and the Slurm/Munge client ser
 ## Registration: mpcc_scripts.yaml
 
 `mpcc_scripts.yaml` is a Django fixture of `scripts.script` objects (slug, name, filename, scriptType) that seeds an mPCC database with this repo's catalog. It references repo-relative `filename` paths, so it assumes the script bodies are uploaded/available separately. Adding a new dispatchable script means an entry here (or direct upload via the mPCC UI).
-
-## Operational docs
-
-The repo root also carries AGENTS.md/CLAUDE.md banner blocks pointing at these `openwiki/` docs, refreshed by the scheduled `.github/workflows/openwiki-update.yml` workflow (daily `openwiki code --update`, PR against `openwiki/update`); these are documentation tooling, not part of the provisioning flow.
-
