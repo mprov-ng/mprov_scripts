@@ -48,6 +48,13 @@
     filename: post-boot/register_IPv6_ll.py
     scriptType: post-boot
 - model: scripts.script
+  pk: sync_interfaces_py
+  fields: 
+    slug: sync_interfaces_py
+    name: Sync the node's network interfaces and switch ports to the mPCC.
+    filename: post-boot/sync_interfaces.py
+    scriptType: post-boot
+- model: scripts.script
   pk: setupbmc_py
   fields: 
     slug: setupbmc_py
