@@ -16,7 +16,7 @@ Scripts are organized by **where they run** in the provisioning lifecycle. See [
 | Directory | Runs where / when | Purpose |
 |---|---|---|
 | [`image-gen/`](script-types/image-generation.md) | During OS image generation inside the mPCC image builder | Install the mProv jobserver + script-runner (shared-key or certificate-authenticated builds), the node certificate renewal timer, mount the `/data` NFS share, install extra packages/yq, run Ansible |
-| [`post-boot/`](script-types/post-boot.md) | On the node after first boot, dispatched by the script-runner jobserver | BMC setup, local disk formatting, IPv6 link-local registration, Slurm GPU gres, CUDA, kernel mitigations, time sync |
+| [`post-boot/`](script-types/post-boot.md) | On the node after first boot, dispatched by the script-runner jobserver | BMC setup, local disk formatting, IPv6 link-local registration, network interface and switch-port sync (LLDP), Slurm GPU gres, CUDA, kernel mitigations, time sync |
 | [`tools/`](operations/admin-tools.md) | Admin command line against a running mPCC | Bulk-create systems/switch ports (`mash`), CSV import, DB backup, image capture |
 | `mpcc_scripts.yaml` | Uploaded/imported into mPCC | Django fixture (`scripts.script`) registering selected scripts into the mPCC database |
 
