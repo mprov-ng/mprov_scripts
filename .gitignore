@@ -1,2 +1,6 @@
 # per-PR git worktrees live here (see mprov-coordinator ground rule 2)
 .worktree/
+
+# Python bytecode from local test runs
+__pycache__/
+*.pyc
