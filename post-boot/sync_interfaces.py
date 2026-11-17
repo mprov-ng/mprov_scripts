@@ -496,6 +496,10 @@ class MScript(MProvScript):
     key = "guid" if iface["kind"] == "ib" else "mac"
     match = next((n for n in known if (n.get(key) or "").lower() == iface[key]), None)
     if match is None:
+      # an interface the mPCC has by name but without a GUID/MAC yet (added
+      # by an admin, or before GUIDs were found) is this one, not a new one
+      match = next((n for n in known if n.get("name") == iface["name"] and not n.get(key)), None)
+    if match is None:
       body = {"system": system_id, "name": iface["name"], "mtu": iface["mtu"]}
       body[key] = iface[key]
       try:
@@ -511,8 +515,8 @@ class MScript(MProvScript):
       changes["name"] = iface["name"]
     if iface["mtu"] and match.get("mtu") != iface["mtu"]:
       changes["mtu"] = iface["mtu"]
-    if iface["kind"] == "ib" and match.get("guid") != iface["guid"]:
-      changes["guid"] = iface["guid"]
+    if (match.get(key) or "").lower() != iface[key]:
+      changes[key] = iface[key]
 
     ok = True
     if changes:

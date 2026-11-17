@@ -277,6 +277,37 @@ def test_infiniband_interface_is_matched_and_added_by_guid(mod, node):
   assert writes(node) == []
 
 
+def test_infiniband_interface_known_by_name_without_a_guid_gets_it(mod, node):
+  # #107: added by an admin, or before GUIDs were found; not a new interface
+  make_iface(node.sysfs, "ib0", 32, IB_ADDR, mtu=2044)
+  nic = node.session.add("networkinterfaces", system=7, name="ib0", guid=None, mac=None, mtu=2044,
+                         switch_port=None)
+  assert node.main() == 0
+  assert writes(node) == [("patch", f"networkinterfaces/{nic['id']}/", {"guid": IB_GUID})]
+  assert len(node.session.tables["networkinterfaces"]) == 1
+  # and the next boot finds it by GUID
+  node.session.writes.clear()
+  assert node.main() == 0
+  assert writes(node) == []
+
+
+def test_ethernet_interface_known_by_name_without_a_mac_gets_it(mod, node):
+  make_iface(node.sysfs, "eno1", 1, MAC, mtu=9000)
+  nic = node.session.add("networkinterfaces", system=7, name="eno1", mac="", mtu=1500, switch_port=None)
+  assert node.main() == 0
+  assert writes(node) == [("patch", f"networkinterfaces/{nic['id']}/", {"mtu": 9000, "mac": MAC})]
+  assert len(node.session.tables["networkinterfaces"]) == 1
+
+
+def test_same_name_with_another_mac_is_not_taken_over(mod, node):
+  # a name match only stands in for a missing MAC/GUID, never replaces one
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  node.session.add("networkinterfaces", system=7, name="eno1", mac="aa:bb:cc:dd:ee:99", mtu=1500,
+                   switch_port=None)
+  assert node.main() == 0
+  assert writes(node) == [("post", "networkinterfaces/", {"system": 7, "name": "eno1", "mtu": 1500, "mac": MAC})]
+
+
 def test_reuses_an_existing_switch_and_port(mod, node):
   make_iface(node.sysfs, "eno1", 1, MAC)
   sw = node.session.add("switches", hostname="leaf01", mgmt_mac=None, mgmt_ip=None, guid=None)
