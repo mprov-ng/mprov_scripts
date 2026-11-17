@@ -428,16 +428,32 @@ class MScript(MProvScript):
     self.switches[cache_key] = switch_id
     return switch_id
 
-  def find_or_create_port(self, switch_id, name):
-    """ The switch port's id in the mPCC, adding it if it's new. """
+  def find_or_create_port(self, switch_id, name, network_id=None):
+    """ The switch port's id in the mPCC, adding it if it's new, on
+    network_id (the network of the interface it's for) if that's known.  An
+    existing port's network is left as it is. """
     query = "switchports/?" + urlencode({"switch": switch_id, "name": name})
     found = self.api_list(query)
     if found is None:
       return None
     if found:
       return found[0].get("id")
+    body = {"switch": switch_id, "name": name}
+    if network_id is not None and self.port_networks:
+      body["networks"] = network_id
     try:
-      port = self.api_write("post", "switchports/", {"switch": switch_id, "name": name})
+      try:
+        port = self.api_write("post", "switchports/", body)
+      except NotAllowed:
+        if "networks" not in body:
+          raise
+        # an mPCC from before nodes could set a new port's network refuses
+        # the whole write; add it without one, and don't send it again
+        del body["networks"]
+        port = self.api_write("post", "switchports/", body)
+        self.port_networks = False
+        print("Note: this mPCC doesn't let a node set a new switch port's network; "
+              "adding ports without one.")
     except Refused as err:
       print(f"Warning: the mPCC wouldn't add port {name}: {err}", file=sys.stderr)
       port = None
@@ -525,7 +541,8 @@ class MScript(MProvScript):
     neighbor = self.neighbor(iface, lldp)
     if neighbor is not None and neighbor["hostname"] and neighbor["port"]:
       switch_id = self.find_or_create_switch(neighbor)
-      port_id = self.find_or_create_port(switch_id, neighbor["port"]) if switch_id else None
+      port_id = (self.find_or_create_port(switch_id, neighbor["port"], match.get("network"))
+                 if switch_id else None)
       if port_id is None:
         print(f"Error: couldn't find or add {neighbor['hostname']} port {neighbor['port']} "
               f"in the mPCC for {iface['name']}.", file=sys.stderr)
@@ -586,6 +603,7 @@ class MScript(MProvScript):
 
     lldp = self.gather_lldp(interfaces, timeout)
     self.switches = {}
+    self.port_networks = True
     failed = False
     try:
       for iface in interfaces:

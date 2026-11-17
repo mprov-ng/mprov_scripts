@@ -169,6 +169,9 @@ class FakeMPCC:
     self.tables = {"networkinterfaces": [], "switches": [], "switchports": []}
     self.writes = []
     self.refuse = set()
+    # (method, table) -> the fields its rule allows; any other is a 403, as
+    # the mPCC's rules refuse a write naming a field they don't allow
+    self.fields = {}
     self.conflict = set()
     self.fail = set()
     self.next_id = 100
@@ -194,7 +197,8 @@ class FakeMPCC:
     body = json.loads(data)
     self.writes.append((method, path, body))
     table = path.split("/")[0]
-    if (method, table) in self.refuse:
+    if (method, table) in self.refuse or (
+        (method, table) in self.fields and set(body) - self.fields[(method, table)]):
       # the mPCC's rules (common.permissions)
       return Response(403, {"detail": f"node01 may not {method.upper()} this."})
     if (method, table) in self.conflict:
@@ -326,6 +330,74 @@ def test_already_in_sync_writes_nothing(mod, node):
   node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
   assert node.main() == 0
   assert writes(node) == []
+
+
+def test_new_port_is_added_on_the_interfaces_network(mod, node):
+  # #106
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  nic = node.session.add("networkinterfaces", system=7, name="eno1", mac=MAC, mtu=1500, switch_port=None,
+                         network=3)
+  node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
+  assert node.main() == 0
+  port = node.session.tables["switchports"][0]
+  assert port["networks"] == 3
+  assert ("patch", f"networkinterfaces/{nic['id']}/", {"switch_port": port["id"]}) in writes(node)
+
+
+def test_new_port_without_a_known_network_names_none(mod, node):
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  node.session.add("networkinterfaces", system=7, name="eno1", mac=MAC, mtu=1500, switch_port=None,
+                   network=None)
+  node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
+  assert node.main() == 0
+  assert [w for w in writes(node, "post") if w[1] == "switchports/"] == [
+    ("post", "switchports/", {"switch": node.session.tables["switches"][0]["id"], "name": "swp12"})]
+
+
+def test_existing_ports_network_is_left_alone(mod, node):
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  sw = node.session.add("switches", hostname="leaf01", mgmt_mac=None, mgmt_ip=None, guid=None)
+  port = node.session.add("switchports", switch=sw["id"], name="swp12", networks=None)
+  node.session.add("networkinterfaces", system=7, name="eno1", mac=MAC, mtu=1500, switch_port=port["id"],
+                   network=3)
+  node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
+  assert node.main() == 0
+  assert writes(node) == []
+  assert port["networks"] is None
+
+
+def test_mpcc_that_wont_take_a_ports_network_gets_ports_without_one(mod, node, capsys):
+  # an mPCC from before nodes could name a new port's network
+  node.session.fields[("post", "switchports")] = {"switch", "name"}
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  make_iface(node.sysfs, "eno2", 1, "aa:bb:cc:dd:ee:02")
+  node.session.add("networkinterfaces", system=7, name="eno1", mac=MAC, mtu=1500, switch_port=None, network=3)
+  node.session.add("networkinterfaces", system=7, name="eno2", mac="aa:bb:cc:dd:ee:02", mtu=1500,
+                   switch_port=None, network=3)
+  node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
+  node.lldp["eno2"] = mod.parse_lldp(lldp_frame(port=b"\x05swp13"))
+  assert node.main() == 0
+  ports = node.session.tables["switchports"]
+  assert sorted(p["name"] for p in ports) == ["swp12", "swp13"]
+  assert all("networks" not in p for p in ports)
+  # refused once, then not sent again
+  posts = [w[2] for w in writes(node, "post") if w[1] == "switchports/"]
+  assert ["networks" in b for b in posts] == [True, False, False]
+  assert capsys.readouterr().out.count("doesn't let a node set a new switch port's network") == 1
+  for nic in node.session.tables["networkinterfaces"]:
+    assert nic["switch_port"] in {p["id"] for p in ports}
+
+
+def test_mpcc_that_wont_let_a_node_add_ports_at_all_stops_as_before(mod, node, capsys):
+  node.session.refuse.add(("post", "switchports"))
+  make_iface(node.sysfs, "eno1", 1, MAC)
+  node.session.add("networkinterfaces", system=7, name="eno1", mac=MAC, mtu=1500, switch_port=None, network=3)
+  node.lldp["eno1"] = mod.parse_lldp(lldp_frame())
+  assert node.main() == 0
+  out = capsys.readouterr().out
+  assert "doesn't let nodes sync their interfaces" in out
+  assert "set a new switch port's network" not in out
+  assert node.session.tables["switchports"] == []
 
 
 def test_two_interfaces_on_one_switch_add_it_once(mod, node):
